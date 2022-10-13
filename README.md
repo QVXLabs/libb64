@@ -78,7 +78,7 @@ It is DAMN fast, if I may say so myself. The C code uses a little trick which ha
 
 (To see how the libb64 codebase compares with some other BASE64 implementations available, see the BENCHMARKS.md file)
 
-The trick involves the fact that a switch-statement may legally cross into sub-blocks. A very thorough and enlightening essay on co-routines in C, using this method, can be found in the above mentioned "Coroutines in C", by Simon Tatham: http://www.chiark.greenend.org.uk/~sgtatham/coroutines.html
+The trick involves the fact that a switch-statement may legally cross into sub-blocks. A very thorough and enlightening essay on co-routines in C, using this method, can be found in the above-mentioned "Coroutines in C", by Simon Tatham: http://www.chiark.greenend.org.uk/~sgtatham/coroutines.html
 
 For example, an RLE decompressing routine, adapted from the article:
 
@@ -107,12 +107,12 @@ For example, an RLE decompressing routine, adapted from the article:
     23        }
     24    }
 
-As can be seen from this example, a coroutine depends on a state variable, which it sets directly before exiting (lines 14 and 119). The next time the routine is entered, the switch moves control to the specific point directly after the previous exit (lines 16 and 21).hands
+As can be seen from this example, a coroutine depends on a state variable, which it sets directly before exiting (lines 14 and 19). The next time the routine is entered, the switch moves control to the specific point directly after the previous exit (lines 16 and 21).hands
 
 (As an aside, in the mentioned article the combination of the top-level switch, the various setting of the state, the return of a value, and the labelling of the exit point is wrapped in #define macros, making the structure of the routine even clearer.)
 
 The obvious problem with any such routine is the static keyword. Any static variables in a function spell doom for multithreaded applications. Also, in situations where this coroutine is used by more than one other coroutines, the consistency is disturbed.
 
-What is needed is a structure for storing these variabled, which is passed to the routine seperately. This obviously breaks the modularity of the function, since now the caller has to worry about and care for the internal state of the routine (the callee). This allows for a fast, multithreading-enabled implementation, which may (obviously) be wrapped in a C++ object for ease of use.
+What is needed is a structure for storing these variabled, which is passed to the routine separately. This obviously breaks the modularity of the function, since now the caller has to worry about and care for the internal state of the routine (the callee). This allows for a fast, multithreading-enabled implementation, which may (obviously) be wrapped in a C++ object for ease of use.
 
-The base64 encoding and decoding functionality in this package is implemented in exactly this way, providing both a high-speed high-maintanence C interface, and a wrapped C++ which is low-maintanence and only slightly less performant.
+The base64 encoding and decoding functionality in this package is implemented in exactly this way, providing both a high-speed high-maintenance C interface, and a wrapped C++ which is low-maintenance and only slightly less performant.

@@ -8,7 +8,7 @@ This is a short example of how to use libb64's C interface to encode
 and decode a file directly.
 The main work is done between the START/STOP ENCODING and DECODING lines.
 The main difference between this code and c-example1.c is that we do not
-know the size of the input file before hand, and so we use to iterate over
+know the size of the input file beforehand, and so we use to iterate over
 encoding and decoding the data.
 */
 
