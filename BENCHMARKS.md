@@ -63,9 +63,9 @@ Encode and Decode the Input file 50 times in a loop, using a simple shell script
 
 libb64 is the fastest encoder/decoder, and has the smallest executable size.
 
-On average it will encode and decode at roughly 31.7 MB/second.
+On average it will encode and decode at roughly 31.7 MB/s.
 
-The closest "competitor" is base64 from GNU coreutils, which reaches only 24.8 MB/second.
+The closest "competitor" is base64 from GNU coreutils, which reaches only 24.8 MB/s.
 
 --
 14/06/2010
