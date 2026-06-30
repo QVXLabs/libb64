@@ -7,6 +7,9 @@ For details, see http://sourceforge.net/projects/libb64
 
 #include <b64/cencode.h>
 
+static const char encoding[] =
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 void base64_init_encodestate(base64_encodestate* state_in)
 {
 	state_in->step = step_A;
@@ -62,7 +65,6 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 
 char base64_encode_value(signed char value_in)
 {
-	static const char* encoding = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	if (value_in > 63) return '=';
 	return encoding[(int)value_in];
 }
@@ -94,6 +96,25 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 		for(;;)
 		{
 	case step_A:
+			/* no-wrap bulk path: encode whole 3-byte triples to 4
+			   chars with no per-char state writes. Only valid at a
+			   clean step_A boundary with line wrapping disabled. */
+			if (cpl == 0)
+			{
+				while (plainchar + 3 <= plaintextend)
+				{
+					unsigned f0 = (unsigned char)plainchar[0];
+					unsigned f1 = (unsigned char)plainchar[1];
+					unsigned f2 = (unsigned char)plainchar[2];
+					codechar[0] = encoding[f0 >> 2];
+					codechar[1] = encoding[((f0 & 0x03) << 4) | (f1 >> 4)];
+					codechar[2] = encoding[((f1 & 0x0f) << 2) | (f2 >> 6)];
+					codechar[3] = encoding[f2 & 0x3f];
+					codechar += 4;
+					plainchar += 3;
+				}
+			}
+
 			if (plainchar == plaintextend)
 			{
 				state_in->result = result;
@@ -105,7 +126,7 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 
 			fragment = *plainchar++;
 			result = (fragment & 0x0fc) >> 2;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 			result = (fragment & 0x003) << 4;
 	case step_B:
 			if (plainchar == plaintextend)
@@ -119,7 +140,7 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 
 			fragment = *plainchar++;
 			result |= (fragment & 0x0f0) >> 4;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 			result = (fragment & 0x00f) << 2;
 	case step_C:
 			if (plainchar == plaintextend)
@@ -133,12 +154,12 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 
 			fragment = *plainchar++;
 			result |= (fragment & 0x0c0) >> 6;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 
 			CHECK_BREAK();
 
 			result = (fragment & 0x03f) >> 0;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 		}
 	}
 	/* control should not reach here */
