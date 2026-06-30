@@ -48,7 +48,7 @@ static size_t decode_bulk_neon(const char* src, size_t len, char* dst)
 	const char* s = src;
 	char* d = dst;
 
-	while (len >= 16)
+	for (; len >= 16; s += 16, d += 12, len -= 16)
 	{
 		uint8x16_t v = vld1q_u8((const uint8_t*)s);
 		uint8x16_t hi_nib = vshrq_n_u8(v, 4);
@@ -83,10 +83,6 @@ static size_t decode_bulk_neon(const char* src, size_t len, char* dst)
 		unsigned char tmp[16];
 		vst1q_u8(tmp, packed);
 		__builtin_memcpy(d, tmp, 12);
-
-		s += 16;
-		d += 12;
-		len -= 16;
 	}
 	return (size_t)(s - src);
 }

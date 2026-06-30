@@ -61,7 +61,7 @@ static size_t encode_bulk_neon(const unsigned char* src, size_t len, char* dst)
 {
 	const unsigned char* s = src;
 	char* d = dst;
-	while (len >= 48)
+	for (; len >= 48; s += 48, d += 64, len -= 48)
 	{
 		uint8x16x3_t v = vld3q_u8(s);
 		uint8x16_t a = v.val[0], b = v.val[1], c = v.val[2];
@@ -73,9 +73,6 @@ static size_t encode_bulk_neon(const unsigned char* src, size_t len, char* dst)
 			vshlq_n_u8(vandq_u8(b, vdupq_n_u8(0x0f)), 2), vshrq_n_u8(c, 6)));
 		o.val[3] = neon_b64_ascii(vandq_u8(c, vdupq_n_u8(0x3f)));
 		vst4q_u8((uint8_t*)d, o);
-		s += 48;
-		d += 64;
-		len -= 48;
 	}
 	return (size_t)(s - src);
 }
