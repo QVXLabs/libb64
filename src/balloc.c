@@ -35,19 +35,17 @@ int base64_encode_alloc(const b64_allocator* alloc, const void* plaintext,
 	size_t cap, n;
 	char* buf;
 
-	if (out) *out = NULL;
-	if (outlen) *outlen = 0;
 	if (!out || !outlen)
 		return -1;
+	*out = NULL;
+	*outlen = 0;
 
 	base64_init_encodestate(&state);
 	/* No wrapping; encode_length reserves room for the trailing NUL too. */
 	cap = base64_encode_length(length, &state);
-	if (cap == 0 && length != 0)
-		return -1;  /* size overflow */
-
-	buf = (char*)a->realloc_fn(a->ctx, NULL, cap + 1, B64_MEM_LONG);
-	if (!buf)
+	if (cap == 0 && length != 0)                  /* size overflow */
+		return -1;
+	if (!(buf = (char*)a->realloc_fn(a->ctx, NULL, cap + 1, B64_MEM_LONG)))
 		return -1;
 
 	n = base64_encode_block(plaintext, length, buf, &state);
@@ -64,24 +62,21 @@ int base64_decode_alloc(const b64_allocator* alloc, const char* code,
 {
 	const b64_allocator* a = resolve(alloc);
 	base64_decodestate state;
-	size_t cap, n;
 	void* buf;
 
-	if (out) *out = NULL;
-	if (outlen) *outlen = 0;
 	if (!out || !outlen)
 		return -1;
+	*out = NULL;
+	*outlen = 0;
 
-	cap = base64_decode_maxlength(length);
-	buf = a->realloc_fn(a->ctx, NULL, cap, B64_MEM_LONG);
+	buf = a->realloc_fn(a->ctx, NULL, base64_decode_maxlength(length),
+	                    B64_MEM_LONG);
 	if (!buf)
 		return -1;
 
 	base64_init_decodestate(&state);
-	n = base64_decode_block(code, length, buf, &state);
-
 	*out = buf;
-	*outlen = n;
+	*outlen = base64_decode_block(code, length, buf, &state);
 	return 0;
 }
 
