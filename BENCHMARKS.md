@@ -28,35 +28,47 @@ CLI, e.g. `b64-gendata 1G binary data.bin`.
 ## Results
 
 Throughput in MB/s (1 MB = 10^6 bytes) of **plaintext** processed, for
-pseudo-random binary input:
+pseudo-random binary input, using the runtime-dispatched best path (AVX2 on
+this CPU):
 
 | Input size | Encode | Decode | Decode (76-col wrapped) |
 |-----------:|-------:|-------:|------------------------:|
-| 64 B       | 508    | 359    | 388 |
-| 256 B      | 553    | 444    | 409 |
-| 4 KiB      | 577    | 462    | 409 |
-| 64 KiB     | 564    | 443    | 433 |
-| 1 MiB      | 563    | 441    | 423 |
-| 16 MiB     | 584    | 427    | 413 |
-| 256 MiB    | 542    | 433    | 413 |
-| 1 GiB      | 366*   | 391    | 407 |
+| 64 B       |  2,406 |  1,448 | 1,143 |
+| 256 B      |  6,835 |  4,325 | 1,771 |
+| 4 KiB      | 12,900 |  7,497 | 1,955 |
+| 64 KiB     | 11,834 |  9,026 | 1,905 |
+| 1 MiB      | 11,542 |  9,094 | 1,939 |
+| 16 MiB     |  6,624 |  4,164 | 1,562 |
+| 256 MiB    |  4,036 |  4,793 | 1,376 |
+| 1 GiB      | 3,573* | 1,137* | 1,625* |
+
+### Speedup vs. the original byte-at-a-time implementation
+
+Same machine, plaintext MB/s for cache-resident buffers:
+
+| Input size | Encode (orig → SIMD) | Decode (orig → SIMD) |
+|-----------:|----------------------|----------------------|
+| 4 KiB      | 577 → 12,900 (22×)   | 462 → 7,497 (16×)    |
+| 64 KiB     | 564 → 11,834 (21×)   | 443 → 9,026 (20×)    |
+| 1 MiB      | 563 → 11,542 (21×)   | 441 → 9,094 (21×)    |
 
 ## Observations
 
-- **Peak ~580 MB/s encode, ~460 MB/s decode** on this box; encode is
-  consistently a little faster than decode.
-- **Sweet spot is L1/L2-resident buffers** (4–64 KiB). Very small inputs
-  pay a fixed per-call cost; beyond the cache size throughput settles into
-  a memory-bound regime (~420–540 MB/s).
+- **Peak ~12.9 GB/s encode (4 KiB), ~9.1 GB/s decode (64 KiB–1 MiB)** —
+  roughly 20× the original byte-at-a-time code at the L1/L2 sweet spot.
+- **Two regimes.** Cache-resident buffers run compute-bound on the SIMD
+  kernels; past the last-level cache (16 MiB+) throughput drops into a
+  memory-bound ~4–6 GB/s, where the ceiling is DRAM bandwidth rather than
+  the transform.
 - **Data-independent.** Across binary, ASCII-text and all-zero inputs the
-  throughput agreed within ~15% — base64 is a fixed per-byte transform
-  with no data-dependent branches on valid input.
-- **MIME line-wrapped input** makes the decoder skip a newline every 76
-  chars; in practice it tracks plain decode within a few percent (the
-  newline test is a cheap `< '+'` rejection), staying ~410–430 MB/s.
+  throughput agreed within ~15% — base64 has no data-dependent branches on
+  valid input, and the SIMD validate/translate stays branchless.
+- **MIME line-wrapped decode (~1.9 GB/s)** is the one case the SIMD path
+  can't fully accelerate: the kernel only engages on unbroken 16-byte runs,
+  so a newline every 76 chars forces a scalar hand-off each line. It still
+  beats the original wrapped decode (~410 MB/s) by ~4–5×.
 - \* The 1 GiB figures are single-iteration and dominated by memory
-  bandwidth/TLB effects, so they are noisier (text and zeros encode at
-  ~520–560 MB/s at the same size); treat them as ballpark.
+  bandwidth/TLB effects, so treat them as ballpark.
 
 These are indicative numbers from one developer machine, not an
 authoritative cross-platform comparison.
