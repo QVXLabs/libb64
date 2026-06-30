@@ -97,20 +97,20 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# SIMD bulk kernels (encode + decode): pick the ones for the target
-# (GNU/Clang x86 or ARM), else scalar stubs. MSVC and other compilers always
-# get the stubs.
+# SIMD bulk kernels (encode + decode). They use GNU/Clang extensions
+# (__attribute__((target)), __builtin_cpu_supports, arm_neon.h), so select
+# them only for GNU/Clang on x86/ARM. MSVC, clang-cl and every other compiler
+# get the scalar stubs.
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" B64_ARCH)
-if (MSVC)
-    set(B64_SIMD_SRCS src/cencode_simd_none.c src/cdecode_simd_none.c)
-elseif (B64_ARCH MATCHES "x86_64|amd64|i[3-6]86")
-    set(B64_SIMD_SRCS src/cencode_simd_sse.c src/cdecode_simd_sse.c)
-elseif (B64_ARCH MATCHES "aarch64|arm")
-    # aarch64 always; ARMv7-A uses NEON only when built with it (the file
-    # checks __ARM_NEON and otherwise falls back to scalar).
-    set(B64_SIMD_SRCS src/cencode_simd_neon.c src/cdecode_simd_neon.c)
-else()
-    set(B64_SIMD_SRCS src/cencode_simd_none.c src/cdecode_simd_none.c)
+set(B64_SIMD_SRCS src/cencode_simd_none.c src/cdecode_simd_none.c)
+if (NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    if (B64_ARCH MATCHES "x86_64|amd64|i[3-6]86")
+        set(B64_SIMD_SRCS src/cencode_simd_sse.c src/cdecode_simd_sse.c)
+    elseif (B64_ARCH MATCHES "aarch64|arm")
+        # aarch64 always; ARMv7-A uses NEON only when built with it (the file
+        # checks __ARM_NEON and otherwise falls back to scalar).
+        set(B64_SIMD_SRCS src/cencode_simd_neon.c src/cdecode_simd_neon.c)
+    endif()
 endif()
 
 # libb64
