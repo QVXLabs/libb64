@@ -17,12 +17,7 @@ static void* default_realloc(void* ctx, void* ptr, size_t size,
 {
 	(void)ctx;
 	(void)life;
-	if (size == 0)
-	{
-		free(ptr);
-		return NULL;
-	}
-	return realloc(ptr, size);
+	return size ? realloc(ptr, size) : (free(ptr), NULL);
 }
 
 static const b64_allocator default_allocator = { default_realloc, NULL };
