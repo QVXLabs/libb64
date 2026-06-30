@@ -5,9 +5,12 @@ This is part of the libb64 project, and has been placed in the public domain.
 For details, see http://sourceforge.net/projects/libb64
 */
 
+#include <stdint.h>
+
 #include <b64/cencode.h>
 
 #include "b64_internal.h"
+#include "cencode12_table.h"
 
 static const char encoding[] =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -104,17 +107,27 @@ size_t base64_encode_block_scalar(const void* plaintext_in, const size_t length_
 			if (cpl == 0)
 			{
 				char* const bulk = codechar;
-				for (; plainchar + 3 <= plaintextend;
-				     codechar += 4, plainchar += 3)
+				char* B64_RESTRICT dst = codechar;
+				const char* B64_RESTRICT src = plainchar;
+				const char* const end = plaintextend;
+				for (; src + 3 <= end; src += 3)
 				{
-					unsigned f0 = (unsigned char)plainchar[0];
-					unsigned f1 = (unsigned char)plainchar[1];
-					unsigned f2 = (unsigned char)plainchar[2];
-					codechar[0] = encoding[f0 >> 2];
-					codechar[1] = encoding[((f0 & 0x03) << 4) | (f1 >> 4)];
-					codechar[2] = encoding[((f1 & 0x0f) << 2) | (f2 >> 6)];
-					codechar[3] = encoding[f2 & 0x3f];
+					/* v packs the triple as 0xb0b1b2; each
+					   table entry holds two chars low-first. */
+					unsigned v = ((unsigned)(unsigned char)src[0]
+					                << 16)
+					           | ((unsigned)(unsigned char)src[1]
+					                << 8)
+					           | (unsigned)(unsigned char)src[2];
+					uint16_t hi = base64_enc12[v >> 12];
+					uint16_t lo = base64_enc12[v & 0xfff];
+					*dst++ = (char)(hi & 0xff);
+					*dst++ = (char)(hi >> 8);
+					*dst++ = (char)(lo & 0xff);
+					*dst++ = (char)(lo >> 8);
 				}
+				codechar = dst;
+				plainchar = src;
 				/* the per-char path bumps stepcount once per emitted char
 				   (via CHECK_BREAK); match that for the bulk output so the
 				   state is identical if wrapping is enabled later. */

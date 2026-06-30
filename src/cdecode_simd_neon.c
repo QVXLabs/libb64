@@ -12,16 +12,22 @@ to 12 bytes with plain shifts/ORs on 16- then 32-bit reinterpretations
 
 #include "b64_internal.h"
 
-#if defined(__aarch64__) || defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if defined(__aarch64__) || defined(__ARM_NEON) || defined(__ARM_NEON__) \
+	|| (defined(_MSC_VER) && defined(_M_ARM64))
 
-#include <arm_neon.h>
+#if defined(_MSC_VER) && defined(_M_ARM64)
+#  include <arm64_neon.h>
+#  include <string.h>  /* cl.exe has no __builtin_memcpy */
+#else
+#  include <arm_neon.h>
+#endif
 
 /* 16-entry byte lookup: result[i] = tbl[idx[i]]; indices >= 16 yield 0.
    Used both for the constant nibble LUTs (load them with vld1q_u8) and for
    the final pack (table = the data vector). */
 static inline uint8x16_t neon_lut16(uint8x16_t tbl, uint8x16_t idx)
 {
-#if defined(__aarch64__)
+#if defined(__aarch64__) || (defined(_MSC_VER) && defined(_M_ARM64))
 	return vqtbl1q_u8(tbl, idx);
 #else
 	uint8x8x2_t t;
@@ -82,7 +88,11 @@ static size_t decode_bulk_neon(const char* src, size_t len, char* dst)
 			neon_lut16(vreinterpretq_u8_u32(w), vld1q_u8(pack_idx));
 		unsigned char tmp[16];
 		vst1q_u8(tmp, packed);
+#if defined(_MSC_VER) && defined(_M_ARM64)
+		memcpy(d, tmp, 12);
+#else
 		__builtin_memcpy(d, tmp, 12);
+#endif
 	}
 	return (size_t)(s - src);
 }

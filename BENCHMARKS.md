@@ -73,6 +73,27 @@ Same machine, plaintext MB/s for cache-resident buffers:
 These are indicative numbers from one developer machine, not an
 authoritative cross-platform comparison.
 
+## Scalar core (portable fallback)
+
+The table-driven scalar core runs on targets without a SIMD kernel and
+finishes the residue/dirty bytes the SIMD path hands back. It uses a 12-bit
+dual-char encode table (two lookups per 3-byte triple) and a four-32-bit-table
+SWAR decoder (four ORs + one sentinel test per 4-char quad).
+
+Measured against the previous straight scalar bulk loops with a separate
+in-loop micro-benchmark (1 MiB buffer, `-O3`, plaintext MB/s):
+
+| Path   | before | after | speedup |
+|--------|-------:|------:|--------:|
+| Encode |  1,444 | 2,054 | 1.42×   |
+| Decode |  1,225 | 2,472 | 2.02×   |
+
+Absolute numbers are machine-specific (this is not the AVX2 host above and the
+loop differs from the Google Benchmark harness); the ratios are the point.
+These paths only run where no SIMD kernel applies — and note that **MSVC
+(cl.exe) builds now use the SSE4.1/AVX2 and NEON kernels** via a CPUID/baseline
+dispatch, where they previously fell back to this scalar core for everything.
+
 ---
 
 # Historical comparison (2010)

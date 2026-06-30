@@ -7,7 +7,10 @@ For details, see http://sourceforge.net/projects/libb64
 
 #include <b64/cdecode.h>
 
+#include <stdint.h>
+
 #include "b64_internal.h"
+#include "cdecode_swar_table.h"
 
 /* Direct-indexed decode table: byte value -> 0..63, -2 for '=', -1 invalid.
    Shared by base64_decode_value and the block loop. */
@@ -64,15 +67,17 @@ size_t base64_decode_block_scalar(const char* code_in, const size_t length_in, v
 			   padding or invalid bytes) 4->3 with one bounds check. */
 			while (codechar + 4 <= codeend)
 			{
-				signed char a = decoding[(unsigned char)codechar[0]];
-				signed char b = decoding[(unsigned char)codechar[1]];
-				signed char c = decoding[(unsigned char)codechar[2]];
-				signed char d = decoding[(unsigned char)codechar[3]];
-				if ((a | b | c | d) < 0)
+				uint32_t out =
+					b64_dec0[(unsigned char)codechar[0]]
+					| b64_dec1[(unsigned char)codechar[1]]
+					| b64_dec2[(unsigned char)codechar[2]]
+					| b64_dec3[(unsigned char)codechar[3]];
+				/* bit 24 set iff any char was non-alphabet */
+				if (out >> 24)
 					break;  /* fall back to the per-char path */
-				plainchar[0] = (char)((a << 2) | (b >> 4));
-				plainchar[1] = (char)((b << 4) | (c >> 2));
-				plainchar[2] = (char)((c << 6) | d);
+				plainchar[0] = (char)(out >> 16);
+				plainchar[1] = (char)(out >> 8);
+				plainchar[2] = (char)(out);
 				plainchar += 3;
 				codechar += 4;
 			}
