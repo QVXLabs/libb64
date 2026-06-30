@@ -8,6 +8,7 @@ Unreleased
 
 Version 2.1.0 Release
 ---------------------
+* Optional customer-provided allocator (b64/alloc.h): a single realloc-style callback `void *(void *ctx, void *ptr, size_t size, b64_memlife life)` carrying an opaque context pointer and a short/long lifetime hint. New one-shot helpers base64_encode_alloc / base64_decode_alloc allocate the output for you (B64_MEM_LONG, freed via base64_free), and the C++ stream wrappers optionally route their scratch buffers through it (B64_MEM_SHORT). NULL allocator falls back to the C library's realloc/free; the core block API stays zero-allocation
 * SIMD-accelerated encode/decode behind the existing API: x86 SSE4.1/AVX2 and ARM NEON (aarch64 + ARMv7-A), runtime-dispatched, with a portable scalar fallback — up to ~20x faster (AVX2). No public API, ABI, streaming, line-wrapping or decoder-tolerance changes
 * MSVC (cl.exe) builds now use the SSE4.1/AVX2 and NEON kernels too, via a CPUID/baseline dispatch, instead of falling back to the scalar core
 * Faster portable scalar core (the SIMD fallback and residue path): a 12-bit dual-char encode table and a four-table SWAR decoder — ~3x encode / ~5x decode over the original byte-at-a-time code, even with SIMD disabled. Decode re-engages SIMD across MIME line wrapping

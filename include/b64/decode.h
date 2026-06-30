@@ -15,6 +15,7 @@ namespace base64
 	extern "C"
 	{
 		#include "cdecode.h"
+		#include "alloc.h"
 	}
 
 	struct decoder
@@ -23,11 +24,31 @@ namespace base64
 
 		base64_decodestate _state;
 		int _buffersize;
+		// Optional customer allocator for the streaming scratch buffers
+		// (B64_MEM_SHORT). Null => plain new[]/delete[].
+		const b64_allocator* _alloc;
 
-		decoder(int buffersize_in = BUFFERSIZE)
-		: _buffersize(buffersize_in)
+		decoder(int buffersize_in = BUFFERSIZE,
+		        const b64_allocator* alloc_in = 0)
+		: _buffersize(buffersize_in), _alloc(alloc_in)
 		{
 			base64_init_decodestate(&_state);
+		}
+
+		char* alloc_scratch(size_t n)
+		{
+			if (_alloc && _alloc->realloc_fn)
+				return static_cast<char*>(
+					_alloc->realloc_fn(_alloc->ctx, 0, n, B64_MEM_SHORT));
+			return new char[n];
+		}
+
+		void free_scratch(char* p)
+		{
+			if (_alloc && _alloc->realloc_fn)
+				_alloc->realloc_fn(_alloc->ctx, p, 0, B64_MEM_SHORT);
+			else
+				delete[] p;
 		}
 
 		int decode(char value_in)
@@ -49,11 +70,11 @@ namespace base64
 			base64_init_decodestate(&_state);
 			//
 			const int N = _buffersize;
-			char* code = new char[N];
+			char* code = alloc_scratch(static_cast<size_t>(N));
 			/* Decoded output is at most ~3/4 of the input; size it that way
 			   instead of a full N. */
-			char* plaintext = new char[base64_decode_maxlength(
-				static_cast<size_t>(N))];
+			char* plaintext = alloc_scratch(base64_decode_maxlength(
+				static_cast<size_t>(N)));
 			std::streamsize codelength;
 			std::streamsize plainlength;
 
@@ -68,8 +89,8 @@ namespace base64
 			//
 			base64_init_decodestate(&_state);
 
-			delete [] code;
-			delete [] plaintext;
+			free_scratch(code);
+			free_scratch(plaintext);
 		}
 	};
 

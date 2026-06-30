@@ -15,6 +15,7 @@ namespace base64
 	extern "C"
 	{
 #include "cencode.h"
+#include "alloc.h"
 	}
 
 	struct encoder
@@ -23,11 +24,31 @@ namespace base64
 
 		base64_encodestate _state;
 		int _buffersize;
+		// Optional customer allocator for the streaming scratch buffers
+		// (B64_MEM_SHORT). Null => plain new[]/delete[].
+		const b64_allocator* _alloc;
 
-		encoder(int buffersize_in = BUFFERSIZE)
-			: _buffersize(buffersize_in)
+		encoder(int buffersize_in = BUFFERSIZE,
+		        const b64_allocator* alloc_in = 0)
+			: _buffersize(buffersize_in), _alloc(alloc_in)
 		{
 			base64_init_encodestate(&_state);
+		}
+
+		char* alloc_scratch(size_t n)
+		{
+			if (_alloc && _alloc->realloc_fn)
+				return static_cast<char*>(
+					_alloc->realloc_fn(_alloc->ctx, 0, n, B64_MEM_SHORT));
+			return new char[n];
+		}
+
+		void free_scratch(char* p)
+		{
+			if (_alloc && _alloc->realloc_fn)
+				_alloc->realloc_fn(_alloc->ctx, p, 0, B64_MEM_SHORT);
+			else
+				delete[] p;
 		}
 
 		int encode(char value_in)
@@ -53,14 +74,14 @@ namespace base64
 		void encode(std::istream& istream_in, std::ostream& ostream_in)
 		{
 			const int N = _buffersize;
-			char* plaintext = new char[N];
+			char* plaintext = alloc_scratch(static_cast<size_t>(N));
 			/* Size the output to what N input bytes actually encode to at the
 			   current line width (base64_encode_length accounts for wrapping
 			   newlines); the small constant covers the mid-stream carry. The
 			   old 2*N was both wasteful when unwrapped and too small for very
 			   narrow line widths. */
-			char* code = new char[
-				base64_encode_length(static_cast<size_t>(N), &_state) + 16];
+			char* code = alloc_scratch(
+				base64_encode_length(static_cast<size_t>(N), &_state) + 16);
 			std::streamsize plainlength;
 			std::streamsize codelength;
 
@@ -78,8 +99,8 @@ namespace base64
 			//
 			base64_init_encodestate(&_state);
 
-			delete[] code;
-			delete[] plaintext;
+			free_scratch(code);
+			free_scratch(plaintext);
 		}
 	};
 
