@@ -138,18 +138,15 @@ size_t base64_decode_block(const char* code_in, const size_t length_in, void* pl
 	   whole rest. SIMD bulk-decodes whole clean 4-char groups from a step_a
 	   boundary; when it blocks, the scalar core (fast quad path) decodes the
 	   clean prefix plus the one blocking byte, then SIMD retries. */
-	while (rem)
+	for (size_t consumed; rem; )
 	{
-		if (state_in->step == step_a && rem >= 16)
+		if (state_in->step == step_a && rem >= 16
+		    && (consumed = base64_decode_bulk_simd(p, rem, o)) != 0)
 		{
-			size_t consumed = base64_decode_bulk_simd(p, rem, o);
-			if (consumed)
-			{
-				p += consumed;
-				o += consumed / 4 * 3;
-				rem -= consumed;
-				continue;
-			}
+			p += consumed;
+			o += consumed / 4 * 3;
+			rem -= consumed;
+			continue;
 		}
 		/* SIMD blocked: a non-alphabet byte within the next 16 chars, fewer
 		   than 16 chars left, or mid-group. Scalar-decode the run of clean
