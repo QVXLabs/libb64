@@ -13,7 +13,7 @@ namespace {
 
 std::string stream_encode(const std::string& in)
 {
-	base64::encoder e;
+	base64::encoder e = base64::encoder_builder().build();
 	std::istringstream is(in);
 	std::ostringstream os;
 	e.encode(is, os);
@@ -22,7 +22,7 @@ std::string stream_encode(const std::string& in)
 
 std::string stream_decode(const std::string& in)
 {
-	base64::decoder d;
+	base64::decoder d = base64::decoder_builder().build();
 	std::istringstream is(in);
 	std::ostringstream os;
 	d.decode(is, os);
@@ -44,7 +44,7 @@ TEST(CppWrapper, StreamRoundTrip)
 
 TEST(CppWrapper, BlockApiRoundTrip)
 {
-	base64::encoder e;
+	base64::encoder e = base64::encoder_builder().build();
 	const std::string in = "abcdefg";
 	std::vector<char> enc(64, '\0');
 	std::streamsize en = e.encode(in.data(),
@@ -52,7 +52,7 @@ TEST(CppWrapper, BlockApiRoundTrip)
 	                              enc.data());
 	en += e.encode_end(enc.data() + en);
 
-	base64::decoder d;
+	base64::decoder d = base64::decoder_builder().build();
 	std::vector<char> dec(64, '\0');
 	std::streamsize dn = d.decode(enc.data(), en, dec.data());
 	EXPECT_EQ(std::string(dec.data(), dn), in);
@@ -63,11 +63,11 @@ TEST(CppWrapper, NonPositiveLengthIsNoOp)
 {
 	char out[16];
 
-	base64::encoder e;
+	base64::encoder e = base64::encoder_builder().build();
 	EXPECT_EQ(e.encode("abc", 0, out), 0);
 	EXPECT_EQ(e.encode("abc", -5, out), 0);
 
-	base64::decoder d;
+	base64::decoder d = base64::decoder_builder().build();
 	EXPECT_EQ(d.decode("YWJj", 0, out), 0);
 	EXPECT_EQ(d.decode("YWJj", -5, out), 0);
 }
@@ -84,8 +84,10 @@ TEST(CppWrapper, StreamEncodeWrappedSmallBufferRoundTrips)
 
 	for (int width : {1, 2, 4, 19, 64, 76})
 	{
-		base64::encoder e(64);            // tiny buffer -> many chunks
-		e._state.chars_per_line = static_cast<size_t>(width);
+		base64::encoder e = base64::encoder_builder()
+			.buffer_size(64)              // tiny buffer -> many chunks
+			.chars_per_line(static_cast<size_t>(width))
+			.build();
 		std::istringstream is(in);
 		std::ostringstream os;
 		e.encode(is, os);
@@ -100,7 +102,7 @@ TEST(CppWrapper, StreamEncodeWrappedSmallBufferRoundTrips)
 				ASSERT_LE(++run, static_cast<size_t>(width)) << "width=" << width;
 		}
 
-		base64::decoder d(64);
+		base64::decoder d = base64::decoder_builder().buffer_size(64).build();
 		std::istringstream dis(enc);
 		std::ostringstream dos;
 		d.decode(dis, dos);
@@ -112,7 +114,7 @@ TEST(CppWrapper, StreamEncodeWrappedSmallBufferRoundTrips)
 // now calls base64_init_decodestate(), so a fresh decoder works.
 TEST(CppWrapper, DecoderInitializedByConstructor_Regression)
 {
-	base64::decoder d;
+	base64::decoder d = base64::decoder_builder().build();
 	const std::string enc = "aGVsbG8gd29ybGQ=";  // "hello world"
 	std::vector<char> out(64, '\0');
 	std::streamsize n = d.decode(enc.data(),

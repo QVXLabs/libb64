@@ -82,12 +82,12 @@ int main(int argc, char** argv)
 
 	if (choice == "-d")
 	{
-		base64::decoder D;
+		base64::decoder D = base64::decoder_builder().build();
 		D.decode(instream, outstream);
 	}
 	else
 	{
-		base64::encoder E;
+		base64::encoder E = base64::encoder_builder().build();
 		E.encode(instream, outstream);
 	}
 

@@ -142,6 +142,7 @@ configure_file(
 add_library(
     b64
     ${B64_LIB_TYPE}
+    include/b64/alloc.h
     include/b64/ccommon.h
     include/b64/cdecode.h
     include/b64/cencode.h
@@ -151,6 +152,7 @@ add_library(
     src/b64_internal.h
     src/cencode.c
     src/cdecode.c
+    src/balloc.c
     ${B64_SIMD_SRCS})
 target_include_directories(
     b64
@@ -160,6 +162,7 @@ target_include_directories(
 target_compile_options(b64 PRIVATE ${B64_STRICT_WARNINGS})
 install(
     FILES
+      include/b64/alloc.h
       include/b64/ccommon.h
       include/b64/cdecode.h
       include/b64/cencode.h
@@ -272,6 +275,7 @@ if (B64_BUILD_TESTS)
         test/cpp_wrapper_tests.cpp
         test/simd_equivalence_tests.cpp
         test/roundtrip_tests.cpp
+        test/alloc_tests.cpp
         test/version_tests.cpp)
     target_include_directories(b64-test PRIVATE test src)
     target_compile_options(b64-test PRIVATE ${B64_STRICT_WARNINGS})
