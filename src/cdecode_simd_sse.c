@@ -128,7 +128,8 @@ static size_t decode_resolve(const char*, size_t, char*);
 static decode_fn decode_impl = decode_resolve;
 
 /* First call picks the kernel for this CPU and patches decode_impl; every
-   later call dispatches straight through it (see cencode_simd_sse.c). */
+   later call dispatches straight through it. Relaxed-atomic read/write of the
+   pointer keeps concurrent first calls race-free (see cencode_simd_sse.c). */
 static size_t decode_resolve(const char* src, size_t len, char* dst)
 {
 	decode_fn fn = decode_bulk_none;
@@ -136,11 +137,12 @@ static size_t decode_resolve(const char* src, size_t len, char* dst)
 		fn = decode_bulk_avx2;
 	else if (__builtin_cpu_supports("sse4.1"))
 		fn = decode_bulk_sse41;
-	decode_impl = fn;
+	__atomic_store_n(&decode_impl, fn, __ATOMIC_RELAXED);
 	return fn(src, len, dst);
 }
 
 size_t base64_decode_bulk_simd(const char* src, size_t len, void* dst)
 {
-	return decode_impl(src, len, (char*)dst);
+	decode_fn fn = __atomic_load_n(&decode_impl, __ATOMIC_RELAXED);
+	return fn(src, len, (char*)dst);
 }

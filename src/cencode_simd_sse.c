@@ -121,8 +121,10 @@ static encode_fn encode_impl = encode_resolve;
 
 /* First call picks the kernel for this CPU and patches encode_impl; every
    later call dispatches straight through it, with no per-call
-   __builtin_cpu_supports. The store races benignly -- all racers resolve to
-   the same pointer and an aligned pointer write is atomic on x86. */
+   __builtin_cpu_supports. The pointer is read/written with relaxed atomics so
+   concurrent first calls aren't a data race -- they all resolve to the same
+   kernel, and relaxed suffices because the target is static code with no other
+   state to publish. */
 static size_t encode_resolve(const unsigned char* src, size_t len, char* dst)
 {
 	encode_fn fn = encode_bulk_none;
@@ -130,11 +132,12 @@ static size_t encode_resolve(const unsigned char* src, size_t len, char* dst)
 		fn = encode_bulk_avx2;
 	else if (__builtin_cpu_supports("sse4.1"))
 		fn = encode_bulk_sse41;
-	encode_impl = fn;
+	__atomic_store_n(&encode_impl, fn, __ATOMIC_RELAXED);
 	return fn(src, len, dst);
 }
 
 size_t base64_encode_bulk_simd(const unsigned char* src, size_t len, char* dst)
 {
-	return encode_impl(src, len, dst);
+	encode_fn fn = __atomic_load_n(&encode_impl, __ATOMIC_RELAXED);
+	return fn(src, len, dst);
 }
