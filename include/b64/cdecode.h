@@ -12,8 +12,8 @@ For details, see http://sourceforge.net/projects/libb64
 
 #include <stddef.h>
 
-#define BASE64_CDEC_VER_MAJOR   2
-#define BASE64_CDEC_VER_MINOR   0
+#define BASE64_CDEC_VER_MAJOR   BASE64_VERSION_MAJOR
+#define BASE64_CDEC_VER_MINOR   BASE64_VERSION_MINOR
 
 typedef enum
 {

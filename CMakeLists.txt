@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
-project(B64 VERSION 2.0.0 LANGUAGES C CXX)
+
+# /VERSION is the single source of truth for the project version; CMake and
+# the generated b64/version.h both derive from it. Re-run CMake when it changes.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" B64_VERSION LIMIT_COUNT 1)
+project(B64 VERSION ${B64_VERSION} LANGUAGES C CXX)
 
 # Default to an optimized Release build when no type is chosen. Single-config
 # generators otherwise leave CMAKE_BUILD_TYPE empty, which yields -O0; the
@@ -113,6 +119,13 @@ if (NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     endif()
 endif()
 
+# Generate b64/version.h from the template + the version parsed above.
+set(B64_VERSION_HEADER ${CMAKE_CURRENT_BINARY_DIR}/include/b64/version.h)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/b64/version.h.in
+    ${B64_VERSION_HEADER}
+    @ONLY)
+
 # libb64
 add_library(
     b64
@@ -122,13 +135,16 @@ add_library(
     include/b64/cencode.h
     include/b64/encode.h
     include/b64/decode.h
+    ${B64_VERSION_HEADER}
     src/b64_internal.h
     src/cencode.c
     src/cdecode.c
     ${B64_SIMD_SRCS})
 target_include_directories(
     b64
-    PUBLIC ./include)
+    PUBLIC
+      ./include
+      ${CMAKE_CURRENT_BINARY_DIR}/include)  # for the generated b64/version.h
 target_compile_options(b64 PRIVATE ${B64_STRICT_WARNINGS})
 install(
     FILES
@@ -137,7 +153,8 @@ install(
       include/b64/cencode.h
       include/b64/decode.h
       include/b64/encode.h
-    TYPE INCLUDE)
+      ${B64_VERSION_HEADER}
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/b64)
 install(TARGETS b64 LIBRARY ARCHIVE)
 
 # base64
@@ -241,7 +258,8 @@ if (B64_BUILD_TESTS)
         test/regression_tests.cpp
         test/rfc_compliance_tests.cpp
         test/cpp_wrapper_tests.cpp
-        test/simd_equivalence_tests.cpp)
+        test/simd_equivalence_tests.cpp
+        test/version_tests.cpp)
     target_include_directories(b64-test PRIVATE test src)
     target_compile_options(b64-test PRIVATE ${B64_STRICT_WARNINGS})
     target_link_libraries(b64-test PRIVATE b64 GTest::gtest_main)
