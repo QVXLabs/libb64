@@ -40,6 +40,9 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 	 * naive integer overflow checks based on the C standard saying the result of overflow is undefined.
 	 */
 	retmax = ~retmax;
+	/* Guard the +2 itself before it can wrap (plain_len near SIZE_MAX). */
+	if(plain_len > retmax - 2)
+		return 0;
 	retval = (plain_len + 2) / 3;
 	if(retval > retmax / 4)
 		return 0;
@@ -70,8 +73,9 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 
 char base64_encode_value(signed char value_in)
 {
-	if (value_in > 63) return '=';
-	return encoding[(int)value_in];
+	/* Cast first: a negative signed char would otherwise index out of range. */
+	if ((unsigned char)value_in > 63) return '=';
+	return encoding[(unsigned char)value_in];
 }
 
 #define CHECK_BREAK()				\

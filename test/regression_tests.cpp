@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "b64_test_util.h"
 
@@ -81,4 +82,50 @@ TEST(Regression, EncodeLengthOverflowGuard)
 	// A comfortably-representable length must still return a real size.
 	EXPECT_GT(base64_encode_length(SIZE_MAX / 8, &s), 0u);
 	EXPECT_EQ(base64_encode_length(3, &s), 4u);
+}
+
+// The overflow guard must also hold when line wrapping is enabled: with a
+// non-zero chars_per_line the pre-fix code wrapped on `plain_len + 2` and
+// returned 1 instead of the 0 error sentinel.
+TEST(Regression, EncodeLengthOverflowGuardWrapped)
+{
+	base64_encodestate s;
+	base64_init_encodestate(&s);
+	s.chars_per_line = 76;
+	EXPECT_EQ(base64_encode_length(SIZE_MAX, &s), 0u);
+	EXPECT_EQ(base64_encode_length(SIZE_MAX - 1, &s), 0u);
+}
+
+// base64_encode_value must not index its 64-entry table with a negative
+// signed char; out-of-range (and negative) inputs map to '='.
+TEST(Regression, EncodeValueRejectsOutOfRange)
+{
+	EXPECT_EQ(base64_encode_value(0), 'A');
+	EXPECT_EQ(base64_encode_value(63), '/');
+	EXPECT_EQ(base64_encode_value(static_cast<signed char>(-1)), '=');
+	EXPECT_EQ(base64_encode_value(64), '=');
+	EXPECT_EQ(base64_encode_value(static_cast<signed char>(-128)), '=');
+}
+
+// base64_decode_maxlength under-sized by 1 for input length ≡ 3 (mod 4): the
+// coroutine decoder's speculative non-advancing store wrote one byte past a
+// buffer sized exactly by the helper. Decode unpadded inputs (which include
+// the length-≡3 case) into an exactly-sized buffer and require correct output;
+// an ASan build proves there is no out-of-bounds write.
+TEST(Regression, DecodeMaxlengthCoversSpeculativeStore)
+{
+	EXPECT_GE(base64_decode_maxlength(3), 3u);
+	for (size_t n = 0; n <= 300; ++n)
+	{
+		const std::string in = b64test::pattern(n);
+		std::string enc = b64test::encode(in);
+		const size_t last = enc.find_last_not_of('=');
+		enc.erase(last == std::string::npos ? 0 : last + 1);  // strip padding
+		std::vector<char> out(base64_decode_maxlength(enc.size()));  // exact
+		base64_decodestate s;
+		base64_init_decodestate(&s);
+		const size_t m = base64_decode_block(enc.data(), enc.size(),
+		                                     out.data(), &s);
+		EXPECT_EQ(std::string(out.data(), m), in) << "n=" << n;
+	}
 }

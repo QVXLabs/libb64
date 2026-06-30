@@ -43,50 +43,52 @@ int main(int argc, char** argv)
 	if (argc != 4)
 	{
 		usage("Wrong number of arguments!");
-		exit(-1);
+		return 1;
 	}
-	
-	// So far so good; try to open the input file
+
+	// Validate the mode before opening (and truncating) the output file.
+	std::string choice = argv[1];
+	if (choice != "-e" && choice != "-d")
+	{
+		usage("Please specify -d or -e as first argument!");
+		return 1;
+	}
+
 	std::string input = argv[2];
-	// Note that we have to open the input in binary mode.
-	// This is due to some operating systems not using binary mode by default.
-	// Since we will most likely be dealing with binary files when encoding, we
-	// have to be able to deal with zeros (and other invalid chars) in the input stream.
-	std::ifstream instream(input.c_str(), std::ios_base::in | std::ios_base::binary);
+	std::string output = argv[3];
+	// Refuse to clobber the input with itself (best-effort path compare).
+	if (input == output)
+	{
+		usage("Input and output must be different files!");
+		return 1;
+	}
+
+	// Open both streams in binary mode: when encoding the input may contain
+	// zeros and other non-text bytes, and when decoding the output may.
+	std::ifstream instream(input.c_str(),
+		std::ios_base::in | std::ios_base::binary);
 	if (!instream.is_open())
 	{
 		usage("Could not open input file!");
-		exit(-1);
+		return 1;
 	}
-	
-	// Now try to open the output file
-	std::string output = argv[3];
-	// Again, note that we have to open the output in binary mode.
-	// Similarly, we will most likely need to deal with zeros in the output stream when we
-	// are decoding, and the output stream has to be able to use these invalid text chars.
-	std::ofstream outstream(output.c_str(), std::ios_base::out | std::ios_base::binary);
+	std::ofstream outstream(output.c_str(),
+		std::ios_base::out | std::ios_base::binary);
 	if (!outstream.is_open())
 	{
 		usage("Could not open output file!");
-		exit(-1);
+		return 1;
 	}
 
-	// determine whether we need to encode or decode:
-	std::string choice = argv[1];
 	if (choice == "-d")
 	{
 		base64::decoder D;
 		D.decode(instream, outstream);
 	}
-	else if (choice == "-e")
+	else
 	{
 		base64::encoder E;
 		E.encode(instream, outstream);
-	}
-	else
-	{
-		std::cout<<"["<<choice<<"]"<<std::endl;
-		usage("Please specify -d or -e as first argument!");
 	}
 
 	return 0;

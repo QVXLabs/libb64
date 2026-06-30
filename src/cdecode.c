@@ -35,7 +35,10 @@ static const signed char decoding[256] = {
 
 size_t base64_decode_maxlength(size_t encode_len)
 {
-	return encode_len / 4 * 3 + 2;
+	/* +3, not +2: for input length 4k+3 the coroutine decoder touches 3k+3
+	   bytes -- the trailing group's speculative non-advancing store lands at
+	   index 3k+2 -- so an exactly-sized buffer needs the extra slack. */
+	return encode_len / 4 * 3 + 3;
 }
 
 int base64_decode_value(signed char value_in)
