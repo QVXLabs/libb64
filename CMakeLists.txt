@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.16)
 project(B64 VERSION 1.2.2 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
