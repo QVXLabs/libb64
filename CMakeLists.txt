@@ -67,6 +67,9 @@ if (MSVC)
     # /W4 /WX = high warning level, warnings-as-errors (applied per target
     # via ${B64_STRICT_WARNINGS}). Optimization is left to CMake's defaults.
     set(B64_STRICT_WARNINGS /W4 /WX)
+    # The MSVC CRT flags fopen() etc. as "unsafe" (C4996); we use standard
+    # C I/O deliberately, so silence that deprecation.
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
     if (B64_PIC)
         add_compile_options(-fpic)
