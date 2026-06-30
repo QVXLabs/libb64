@@ -171,6 +171,71 @@ TEST(SimdEquivalence, DecodeWithWhitespaceMatchesScalar)
 	          decode_oneshot(spaced, base64_decode_block_scalar));
 }
 
+namespace {
+
+// Sprinkle whitespace into a base64 string at pseudo-random positions, so the
+// pruning path meets every alignment of skipped bytes within a vector.
+std::string sprinkle_ws(const std::string& enc, unsigned seed)
+{
+	static const char ws[] = {' ', '\t', '\n', '\r'};
+	std::string out;
+	unsigned x = seed;
+	for (char c : enc)
+	{
+		out += c;
+		x = x * 1103515245u + 12345u;
+		if ((x >> 29) < 3u)            /* insert with ~3/8 probability */
+			out += ws[(x >> 16) & 3u];
+	}
+	return out;
+}
+
+} // namespace
+
+// The SIMD whitespace-pruning decode must equal the scalar core across wrap
+// widths (incl. ones that aren't a multiple of 4 or 16) and lengths that land
+// on every FIFO/partial-group boundary.
+TEST(SimdEquivalence, DecodePrunedWrappedMatchesScalar)
+{
+	const size_t widths[] = {1, 2, 3, 4, 7, 16, 19, 20, 32, 64, 76, 77, 128};
+	for (size_t width : widths)
+		for (size_t n = 0; n <= 410; ++n)
+		{
+			std::string wrapped = b64test::encode(b64test::pattern(n), width);
+			EXPECT_EQ(decode_oneshot(wrapped, base64_decode_block),
+			          decode_oneshot(wrapped, base64_decode_block_scalar))
+				<< "width=" << width << " n=" << n;
+		}
+}
+
+TEST(SimdEquivalence, DecodeSprinkledWhitespaceMatchesScalar)
+{
+	const unsigned seeds[] = {1u, 7u, 13u, 99u, 12345u};
+	for (size_t n = 0; n <= 300; ++n)
+	{
+		std::string enc = b64test::encode(b64test::pattern(n));
+		for (unsigned seed : seeds)
+		{
+			std::string dirty = sprinkle_ws(enc, seed);
+			EXPECT_EQ(decode_oneshot(dirty, base64_decode_block),
+			          decode_oneshot(dirty, base64_decode_block_scalar))
+				<< "n=" << n << " seed=" << seed;
+		}
+	}
+}
+
+// Streaming wrapped input in arbitrary chunks exercises the prune -> scalar
+// handoff and the mid-group decoder state carried between calls.
+TEST(SimdEquivalence, DecodeWrappedChunkedMatchesScalar)
+{
+	const size_t chunks[] = {1, 2, 3, 5, 7, 16, 17, 31, 32, 48, 64, 77};
+	std::string wrapped = b64test::encode(b64test::pattern(500), 76);
+	for (size_t chunk : chunks)
+		EXPECT_EQ(decode_chunked(wrapped, chunk, base64_decode_block),
+		          decode_chunked(wrapped, chunk, base64_decode_block_scalar))
+			<< "chunk=" << chunk;
+}
+
 TEST(SimdEquivalence, DecodeUnalignedMatchesScalar)
 {
 	const std::string enc = b64test::encode(b64test::pattern(257));
