@@ -111,7 +111,9 @@ if (MSVC)
     set(B64_SIMD_SRC src/cencode_simd_none.c)
 elseif (B64_ARCH MATCHES "x86_64|amd64|i[3-6]86")
     set(B64_SIMD_SRC src/cencode_simd_sse.c)
-elseif (B64_ARCH MATCHES "aarch64|arm64")
+elseif (B64_ARCH MATCHES "aarch64|arm")
+    # aarch64 always; ARMv7-A uses NEON only when built with it (the file
+    # checks __ARM_NEON and otherwise falls back to scalar).
     set(B64_SIMD_SRC src/cencode_simd_neon.c)
 else()
     set(B64_SIMD_SRC src/cencode_simd_none.c)
