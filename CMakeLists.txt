@@ -200,8 +200,14 @@ if (BUILD_TESTING)
     if (NOT GTest_FOUND)
         message(STATUS "GTest not found; using third-party/googletest")
         add_subdirectory(third-party/googletest EXCLUDE_FROM_ALL)
-        add_library(GTest::gtest_main ALIAS gtest_main)
-        add_library(GTest::gmock_main ALIAS gmock_main)
+        # googletest 1.11 does not export the namespaced targets that
+        # find_package(GTest) provides; alias them so consumers match.
+        if (NOT TARGET GTest::gtest_main)
+            add_library(GTest::gtest_main ALIAS gtest_main)
+        endif()
+        if (NOT TARGET GTest::gmock_main)
+            add_library(GTest::gmock_main ALIAS gmock_main)
+        endif()
         b64_mark_system(gtest gtest_main gmock gmock_main)
     endif()
 
@@ -209,7 +215,9 @@ if (BUILD_TESTING)
         message(STATUS "benchmark not found; using third-party/benchmark")
         set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
         add_subdirectory(third-party/benchmark EXCLUDE_FROM_ALL)
-        add_library(benchmark::benchmark_main ALIAS benchmark_main)
+        if (NOT TARGET benchmark::benchmark)
+            add_library(benchmark::benchmark ALIAS benchmark)
+        endif()
         b64_mark_system(benchmark benchmark_main)
     endif()
 
@@ -227,9 +235,21 @@ if (BUILD_TESTING)
     include(GoogleTest)
     gtest_discover_tests(b64-test)
 
-    # microbenchmarks (Google Benchmark)
+    # microbenchmarks (Google Benchmark). Conan's find_package exposes a
+    # single benchmark::benchmark target that already bundles the default
+    # main(); the submodule splits it into benchmark::benchmark_main. Link
+    # whichever provides main() (the source does not define its own).
+    if (TARGET benchmark::benchmark_main)
+        set(B64_BENCHMARK_MAIN benchmark::benchmark_main)
+    else()
+        set(B64_BENCHMARK_MAIN benchmark::benchmark)
+    endif()
     add_executable(b64-benchmark benchmark/main.cpp)
     target_compile_options(b64-benchmark PRIVATE ${B64_STRICT_WARNINGS})
-    target_link_libraries(b64-benchmark PRIVATE b64 benchmark::benchmark_main)
+    target_link_libraries(b64-benchmark PRIVATE b64 ${B64_BENCHMARK_MAIN})
+
+    # data-file generator for ad-hoc benchmarking / feeding the base64 CLI
+    add_executable(b64-gendata tools/gendata.c)
+    target_compile_options(b64-gendata PRIVATE ${B64_STRICT_WARNINGS})
 endif()
 
