@@ -1,7 +1,12 @@
 b64: Base64 Encoding/Decoding Routines
 ======================================
 
-[![CI](https://github.com/QVXLabs/libb64/actions/workflows/ci.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci.yml)
+[![linux-x86_64](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-x86_64.yml)
+[![linux-arm64](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-arm64.yml)
+[![macos-x86_64](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-x86_64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-x86_64.yml)
+[![macos-arm64](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-arm64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-arm64.yml)
+[![windows-x86_64](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-x86_64.yml)
+[![windows-arm64](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-arm64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-arm64.yml)
 
 Overview
 --------
