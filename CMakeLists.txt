@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.4.3)
+cmake_minimum_required(VERSION 3.16)
 project(B64 VERSION 1.2.2 LANGUAGES C CXX)
 
 include(GNUInstallDirs)
@@ -92,6 +92,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 add_library(
     b64
     ${B64_LIB_TYPE}
+    include/b64/ccommon.h
     include/b64/cdecode.h
     include/b64/cencode.h
     include/b64/decode.h
@@ -103,6 +104,7 @@ target_include_directories(
     PUBLIC ./include)
 install(
     FILES
+      include/b64/ccommon.h
       include/b64/cdecode.h
       include/b64/cencode.h
       include/b64/decode.h

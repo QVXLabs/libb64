@@ -1,7 +1,7 @@
 libb64: Base64 Encoding/Decoding Routines
 ======================================
 
-Requirements:
+Requirements
 ------------
 This piece of software has minimal requirements.
 
@@ -23,21 +23,17 @@ I have tested it on the following systems:
 
 - Windows XP machine (same as above)
 	* Microsoft Visual Studio 2010, Version 10.0.30319.1 RTMRel
-	
-Barring any serious screwups on my part, this code should compile and run sweetly
-under Cygwin and other systems too. If you DO get it running under some weird arch/os setup,
-send me a mail, please.
 
-Compiling:
+Barring any serious screwups on my part, this code should compile and run sweetly under Cygwin and other systems too. If you DO get it running under some weird arch/os setup, send me a mail, please.
+
+Compiling
 ---------
 There is no configure. It would be overkill for something so simple...
 Run make in the root directory.
 
-Installing:
+Installing
 ----------
-Since the current targets are a standalone executable and a static library
-(fancy name for archive) with some headers, an install script has not been implemented yet.
-Simply copy the executable into your path, and use it.
+Since the current targets are a standalone executable and a static library (fancy name for archive) with some headers, an install script has not been implemented yet. Simply copy the executable into your path, and use it.
 
 --
 peace out
