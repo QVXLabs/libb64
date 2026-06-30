@@ -103,7 +103,8 @@ size_t base64_encode_block_scalar(const void* plaintext_in, const size_t length_
 			   clean step_A boundary with line wrapping disabled. */
 			if (cpl == 0)
 			{
-				while (plainchar + 3 <= plaintextend)
+				for (; plainchar + 3 <= plaintextend;
+				     codechar += 4, plainchar += 3)
 				{
 					unsigned f0 = (unsigned char)plainchar[0];
 					unsigned f1 = (unsigned char)plainchar[1];
@@ -112,8 +113,6 @@ size_t base64_encode_block_scalar(const void* plaintext_in, const size_t length_
 					codechar[1] = encoding[((f0 & 0x03) << 4) | (f1 >> 4)];
 					codechar[2] = encoding[((f1 & 0x0f) << 2) | (f2 >> 6)];
 					codechar[3] = encoding[f2 & 0x3f];
-					codechar += 4;
-					plainchar += 3;
 				}
 			}
 
