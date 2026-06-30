@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -101,5 +102,96 @@ TEST(SimdEquivalence, EncodeChunkedMatchesScalar)
 		EXPECT_EQ(encode_chunked(in, chunk, base64_encode_block),
 		          encode_chunked(in, chunk, base64_encode_block_scalar))
 			<< "chunk=" << chunk;
+	}
+}
+
+namespace {
+
+typedef size_t (*decode_block_fn)(const char*, size_t, void*,
+                                  base64_decodestate*);
+
+std::string decode_oneshot(const std::string& enc, decode_block_fn block)
+{
+	base64_decodestate s;
+	base64_init_decodestate(&s);
+	std::vector<char> out(base64_decode_maxlength(enc.size()) + 1, '\0');
+	size_t n = block(enc.data(), enc.size(), out.data(), &s);
+	return std::string(out.data(), n);
+}
+
+std::string decode_chunked(const std::string& enc, size_t chunk,
+                           decode_block_fn block)
+{
+	base64_decodestate s;
+	base64_init_decodestate(&s);
+	std::vector<char> out(base64_decode_maxlength(enc.size()) + 1, '\0');
+	size_t n = 0;
+	for (size_t off = 0; off < enc.size(); off += chunk)
+	{
+		size_t len = std::min(chunk, enc.size() - off);
+		n += block(enc.data() + off, len, out.data() + n, &s);
+	}
+	return std::string(out.data(), n);
+}
+
+} // namespace
+
+TEST(SimdEquivalence, DecodeOneShotMatchesScalar)
+{
+	for (size_t n = 0; n <= 600; ++n)
+	{
+		std::string enc = b64test::encode(b64test::pattern(n));
+		EXPECT_EQ(decode_oneshot(enc, base64_decode_block),
+		          decode_oneshot(enc, base64_decode_block_scalar)) << "n=" << n;
+	}
+}
+
+TEST(SimdEquivalence, DecodeChunkedMatchesScalar)
+{
+	const std::string enc = b64test::encode(b64test::pattern(300));
+	for (size_t chunk : {size_t(1), size_t(2), size_t(4), size_t(7),
+	                     size_t(16), size_t(17), size_t(64)})
+	{
+		EXPECT_EQ(decode_chunked(enc, chunk, base64_decode_block),
+		          decode_chunked(enc, chunk, base64_decode_block_scalar))
+			<< "chunk=" << chunk;
+	}
+}
+
+// Whitespace/padding force the SIMD path to bail to scalar mid-stream; the
+// result must still equal the scalar-only decode.
+TEST(SimdEquivalence, DecodeWithWhitespaceMatchesScalar)
+{
+	std::string wrapped = b64test::encode(b64test::pattern(400), 76);
+	EXPECT_EQ(decode_oneshot(wrapped, base64_decode_block),
+	          decode_oneshot(wrapped, base64_decode_block_scalar));
+
+	const std::string spaced = "Z m 9 v Ym Fy\n\n";
+	EXPECT_EQ(decode_oneshot(spaced, base64_decode_block),
+	          decode_oneshot(spaced, base64_decode_block_scalar));
+}
+
+TEST(SimdEquivalence, DecodeUnalignedMatchesScalar)
+{
+	const std::string enc = b64test::encode(b64test::pattern(257));
+	for (size_t off = 0; off < 16; ++off)
+	{
+		std::vector<char> inbuf(off + enc.size());
+		std::memcpy(inbuf.data() + off, enc.data(), enc.size());
+		const char* in = inbuf.data() + off;  /* unaligned by `off` */
+		const size_t cap = base64_decode_maxlength(enc.size()) + 1;
+
+		base64_decodestate s1;
+		base64_init_decodestate(&s1);
+		std::vector<char> o1(off + cap, '\0');
+		size_t a = base64_decode_block(in, enc.size(), o1.data() + off, &s1);
+
+		base64_decodestate s2;
+		base64_init_decodestate(&s2);
+		std::vector<char> o2(cap, '\0');
+		size_t b = base64_decode_block_scalar(in, enc.size(), o2.data(), &s2);
+
+		EXPECT_EQ(std::string(o1.data() + off, a),
+		          std::string(o2.data(), b)) << "off=" << off;
 	}
 }

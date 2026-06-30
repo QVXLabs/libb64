@@ -2,19 +2,20 @@
 cencode_simd_sse.c - x86 SSE bulk base64 encode (internal).
 
 Built by CMake only on GNU/Clang x86 targets; provides
-base64_encode_bulk_simd. Uses the Muła/Lemire SSSE3 kernel, selected at
-runtime via __builtin_cpu_supports so a single binary runs on any x86.
+base64_encode_bulk_simd. Uses the Muła/Lemire kernel, runtime-gated by
+__builtin_cpu_supports so a single binary runs on any x86. The SSE floor is
+SSE4.1.
 */
 
 #include "b64_internal.h"
 
 #include <immintrin.h>
 
-/* SSSE3: 16 input bytes (12 consumed) -> 16 output chars per iteration. The
+/* SSE4.1: 16 input bytes (12 consumed) -> 16 output chars per iteration. The
    last iteration reads 4 bytes it does not consume; they are always within
    the buffer because the loop only runs while >= 16 bytes remain. */
-__attribute__((target("ssse3")))
-static size_t encode_bulk_ssse3(const unsigned char* src, size_t len,
+__attribute__((target("sse4.1")))
+static size_t encode_bulk_sse41(const unsigned char* src, size_t len,
                                 char* dst)
 {
 	const __m128i shuf =
@@ -53,7 +54,7 @@ static size_t encode_bulk_ssse3(const unsigned char* src, size_t len,
 
 size_t base64_encode_bulk_simd(const unsigned char* src, size_t len, char* dst)
 {
-	if (__builtin_cpu_supports("ssse3"))
-		return encode_bulk_ssse3(src, len, dst);
+	if (__builtin_cpu_supports("sse4.1"))
+		return encode_bulk_sse41(src, len, dst);
 	return 0;
 }

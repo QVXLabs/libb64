@@ -7,6 +7,8 @@ For details, see http://sourceforge.net/projects/libb64
 
 #include <b64/cdecode.h>
 
+#include "b64_internal.h"
+
 /* Direct-indexed decode table: byte value -> 0..63, -2 for '=', -1 invalid.
    Shared by base64_decode_value and the block loop. */
 static const signed char decoding[256] = {
@@ -44,7 +46,7 @@ void base64_init_decodestate(base64_decodestate* state_in)
 	state_in->plainchar = 0;
 }
 
-size_t base64_decode_block(const char* code_in, const size_t length_in, void* plaintext_out, base64_decodestate* state_in)
+size_t base64_decode_block_scalar(const char* code_in, const size_t length_in, void* plaintext_out, base64_decodestate* state_in)
 {
 	const char* codechar = code_in;
 	const char* const codeend = code_in + length_in;
@@ -123,4 +125,26 @@ size_t base64_decode_block(const char* code_in, const size_t length_in, void* pl
 	}
 	/* control should not reach here */
 	return (size_t) (plainchar - (char *) plaintext_out);
+}
+
+size_t base64_decode_block(const char* code_in, const size_t length_in, void* plaintext_out, base64_decodestate* state_in)
+{
+	/* SIMD bulk only from a clean step_a boundary; it decodes whole clean
+	   4-char groups and stops before any group with a non-alphabet byte,
+	   leaving the scalar core to handle whitespace/padding/invalid and the
+	   tail (and to maintain stream state). */
+	if (state_in->step == step_a)
+	{
+		size_t consumed = base64_decode_bulk_simd(code_in, length_in,
+		                                          plaintext_out);
+		if (consumed)
+		{
+			size_t produced = consumed / 4 * 3;
+			return produced + base64_decode_block_scalar(
+				code_in + consumed, length_in - consumed,
+				(char*)plaintext_out + produced, state_in);
+		}
+	}
+	return base64_decode_block_scalar(code_in, length_in, plaintext_out,
+	                                  state_in);
 }
