@@ -24,9 +24,7 @@ static const b64_allocator default_allocator = { default_realloc, NULL };
 
 static const b64_allocator* resolve(const b64_allocator* alloc)
 {
-	if (alloc && alloc->realloc_fn)
-		return alloc;
-	return &default_allocator;
+	return (alloc && alloc->realloc_fn) ? alloc : &default_allocator;
 }
 
 int base64_encode_alloc(const b64_allocator* alloc, const void* plaintext,
