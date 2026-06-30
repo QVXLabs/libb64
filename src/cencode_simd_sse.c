@@ -10,6 +10,12 @@ SSE4.1.
 #include "b64_internal.h"
 
 #include <immintrin.h>
+#include <stdint.h>
+
+/* Cache-bypassing (non-temporal) stores pay off only once the output stops
+   fitting the last-level cache; below this the normal cached store wins.
+   Threshold is in input bytes; encode output is 4/3 of it. */
+#define B64_NT_ENCODE_MIN (6u << 20)
 
 /* SSE4.1: 16 input bytes (12 consumed) -> 16 output chars per iteration. The
    last iteration reads 4 bytes it does not consume; they are always within
@@ -25,8 +31,10 @@ static size_t encode_bulk_sse41(const unsigned char* src, size_t len,
 		              -4, -4, -4, -4, -19, -16, 0, 0);
 	const unsigned char* s = src;
 	char* d = dst;
+	/* dst advances 16/iter, so 16-byte alignment is loop-invariant. */
+	const int use_nt = len >= B64_NT_ENCODE_MIN && ((uintptr_t)d & 15) == 0;
 
-	while (len >= 16)
+	for (; len >= 16; s += 12, d += 16, len -= 12)
 	{
 		__m128i in = _mm_loadu_si128((const __m128i*)s);
 		in = _mm_shuffle_epi8(in, shuf);
@@ -44,11 +52,13 @@ static size_t encode_bulk_sse41(const unsigned char* src, size_t len,
 		reduced = _mm_sub_epi8(reduced, greater);
 		__m128i out = _mm_add_epi8(indices, _mm_shuffle_epi8(lut, reduced));
 
-		_mm_storeu_si128((__m128i*)d, out);
-		s += 12;
-		d += 16;
-		len -= 12;
+		if (use_nt)
+			_mm_stream_si128((__m128i*)d, out);
+		else
+			_mm_storeu_si128((__m128i*)d, out);
 	}
+	if (use_nt)
+		_mm_sfence();  /* make the streamed stores visible before we return */
 	return (size_t)(s - src);
 }
 
@@ -67,8 +77,10 @@ static size_t encode_bulk_avx2(const unsigned char* src, size_t len, char* dst)
 		65, 71, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -19, -16, 0, 0);
 	const unsigned char* s = src;
 	char* d = dst;
+	/* dst advances 32/iter, so 32-byte alignment is loop-invariant. */
+	const int use_nt = len >= B64_NT_ENCODE_MIN && ((uintptr_t)d & 31) == 0;
 
-	while (len >= 32)
+	for (; len >= 32; s += 24, d += 32, len -= 24)
 	{
 		__m256i in = _mm256_loadu_si256((const __m256i*)s);
 		in = _mm256_permutevar8x32_epi32(in, perm);
@@ -86,19 +98,43 @@ static size_t encode_bulk_avx2(const unsigned char* src, size_t len, char* dst)
 		__m256i out = _mm256_add_epi8(idx,
 		                              _mm256_shuffle_epi8(lut, reduced));
 
-		_mm256_storeu_si256((__m256i*)d, out);
-		s += 24;
-		d += 32;
-		len -= 24;
+		if (use_nt)
+			_mm256_stream_si256((__m256i*)d, out);
+		else
+			_mm256_storeu_si256((__m256i*)d, out);
 	}
+	if (use_nt)
+		_mm_sfence();  /* make the streamed stores visible before we return */
 	return (size_t)(s - src);
+}
+
+static size_t encode_bulk_none(const unsigned char* src, size_t len, char* dst)
+{
+	(void)src; (void)len; (void)dst;
+	return 0;  /* no SSE4.1: the scalar core does everything */
+}
+
+typedef size_t (*encode_fn)(const unsigned char*, size_t, char*);
+
+static size_t encode_resolve(const unsigned char*, size_t, char*);
+static encode_fn encode_impl = encode_resolve;
+
+/* First call picks the kernel for this CPU and patches encode_impl; every
+   later call dispatches straight through it, with no per-call
+   __builtin_cpu_supports. The store races benignly -- all racers resolve to
+   the same pointer and an aligned pointer write is atomic on x86. */
+static size_t encode_resolve(const unsigned char* src, size_t len, char* dst)
+{
+	encode_fn fn = encode_bulk_none;
+	if (__builtin_cpu_supports("avx2"))
+		fn = encode_bulk_avx2;
+	else if (__builtin_cpu_supports("sse4.1"))
+		fn = encode_bulk_sse41;
+	encode_impl = fn;
+	return fn(src, len, dst);
 }
 
 size_t base64_encode_bulk_simd(const unsigned char* src, size_t len, char* dst)
 {
-	if (__builtin_cpu_supports("avx2"))
-		return encode_bulk_avx2(src, len, dst);
-	if (__builtin_cpu_supports("sse4.1"))
-		return encode_bulk_sse41(src, len, dst);
-	return 0;
+	return encode_impl(src, len, dst);
 }

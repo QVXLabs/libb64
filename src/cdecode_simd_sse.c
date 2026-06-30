@@ -32,7 +32,7 @@ static size_t decode_bulk_sse41(const char* src, size_t len, char* dst)
 	const char* s = src;
 	char* d = dst;
 
-	while (len >= 16)
+	for (; len >= 16; s += 16, d += 12, len -= 16)
 	{
 		__m128i v = _mm_loadu_si128((const __m128i*)s);
 		__m128i hi_nib = _mm_and_si128(_mm_srli_epi32(v, 4), mask_0f);
@@ -56,10 +56,6 @@ static size_t decode_bulk_sse41(const char* src, size_t len, char* dst)
 		unsigned char tmp[16];
 		_mm_storeu_si128((__m128i*)tmp, out);
 		memcpy(d, tmp, 12);  /* only 12 bytes are valid; no over-write */
-
-		s += 16;
-		d += 12;
-		len -= 16;
 	}
 	return (size_t)(s - src);
 }
@@ -92,7 +88,7 @@ static size_t decode_bulk_avx2(const char* src, size_t len, char* dst)
 	const char* s = src;
 	char* d = dst;
 
-	while (len >= 32)
+	for (; len >= 32; s += 32, d += 24, len -= 32)
 	{
 		__m256i v = _mm256_loadu_si256((const __m256i*)s);
 		__m256i hi_nib = _mm256_and_si256(_mm256_srli_epi32(v, 4), mask_0f);
@@ -116,19 +112,35 @@ static size_t decode_bulk_avx2(const char* src, size_t len, char* dst)
 		unsigned char tmp[32];
 		_mm256_storeu_si256((__m256i*)tmp, out);
 		memcpy(d, tmp, 24);
-
-		s += 32;
-		d += 24;
-		len -= 32;
 	}
 	return (size_t)(s - src);
 }
 
+static size_t decode_bulk_none(const char* src, size_t len, char* dst)
+{
+	(void)src; (void)len; (void)dst;
+	return 0;  /* no SSE4.1: the scalar core does everything */
+}
+
+typedef size_t (*decode_fn)(const char*, size_t, char*);
+
+static size_t decode_resolve(const char*, size_t, char*);
+static decode_fn decode_impl = decode_resolve;
+
+/* First call picks the kernel for this CPU and patches decode_impl; every
+   later call dispatches straight through it (see cencode_simd_sse.c). */
+static size_t decode_resolve(const char* src, size_t len, char* dst)
+{
+	decode_fn fn = decode_bulk_none;
+	if (__builtin_cpu_supports("avx2"))
+		fn = decode_bulk_avx2;
+	else if (__builtin_cpu_supports("sse4.1"))
+		fn = decode_bulk_sse41;
+	decode_impl = fn;
+	return fn(src, len, dst);
+}
+
 size_t base64_decode_bulk_simd(const char* src, size_t len, void* dst)
 {
-	if (__builtin_cpu_supports("avx2"))
-		return decode_bulk_avx2(src, len, (char*)dst);
-	if (__builtin_cpu_supports("sse4.1"))
-		return decode_bulk_sse41(src, len, (char*)dst);
-	return 0;
+	return decode_impl(src, len, (char*)dst);
 }
