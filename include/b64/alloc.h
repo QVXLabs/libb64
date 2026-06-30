@@ -32,9 +32,12 @@ typedef enum
      otherwise    -> resize `ptr` to `size`
    Returns NULL on allocation failure (and, like realloc, leaves the old block
    valid). `ctx` is the opaque pointer below; `life` is the lifetime hint. */
+typedef void* (*b64_realloc_fn)(void* ctx, void* ptr, size_t size,
+                                b64_memlife life);
+
 typedef struct
 {
-	void* (*realloc_fn)(void* ctx, void* ptr, size_t size, b64_memlife life);
+	b64_realloc_fn realloc_fn;
 	void* ctx;
 } b64_allocator;
 
@@ -57,8 +60,42 @@ int base64_decode_alloc(const b64_allocator* alloc, const char* code,
    the same allocator and the B64_MEM_LONG lifetime. NULL ptr is a no-op. */
 void base64_free(const b64_allocator* alloc, void* ptr);
 
+/* Construct a b64_allocator from a callback + context -- the C counterpart of
+   the C++ builder's realloc setter. */
+b64_allocator base64_allocator(b64_realloc_fn fn, void* ctx);
+
 #ifdef __cplusplus
 }
 #endif
+
+#ifdef __cplusplus
+
+namespace base64
+{
+
+/* Default allocator for the C++ stream wrappers: wraps new[]/delete[] so the
+   default path keeps operator new's throw-on-OOM behavior. The wrappers resolve
+   their allocator to this (or the caller's) once at construction, so their hot
+   path needs no per-call check. */
+extern "C" inline void* b64_new_delete_realloc(void* ctx, void* ptr,
+                                               size_t size, b64_memlife life)
+{
+	(void)ctx;
+	(void)life;
+	if (size)
+		return new char[size];
+	delete[] static_cast<char*>(ptr);
+	return 0;
+}
+
+inline b64_allocator default_cpp_allocator()
+{
+	b64_allocator a = { b64_new_delete_realloc, 0 };
+	return a;
+}
+
+} /* namespace base64 */
+
+#endif /* __cplusplus */
 
 #endif /* BASE64_ALLOC_H */

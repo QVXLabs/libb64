@@ -86,3 +86,11 @@ void base64_free(const b64_allocator* alloc, void* ptr)
 	if (ptr)
 		a->realloc_fn(a->ctx, ptr, 0, B64_MEM_LONG);
 }
+
+b64_allocator base64_allocator(b64_realloc_fn fn, void* ctx)
+{
+	b64_allocator a;
+	a.realloc_fn = fn;
+	a.ctx = ctx;
+	return a;
+}

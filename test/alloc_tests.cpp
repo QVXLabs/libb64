@@ -11,9 +11,7 @@
 
 #include "b64_test_util.h"
 
-extern "C" {
 #include <b64/alloc.h>
-}
 #include <b64/encode.h>
 #include <b64/decode.h>
 
@@ -117,6 +115,21 @@ TEST(Alloc, FailureReturnsError)
 	EXPECT_EQ(dlen, 0u);
 }
 
+// The C base64_allocator() helper builds a usable allocator from fn + ctx.
+TEST(Alloc, CHelperBuildsAllocator)
+{
+	TrackingCtx ctx;
+	b64_allocator a = base64_allocator(tracking_realloc, &ctx);
+
+	char* enc = 0; size_t elen = 0;
+	ASSERT_EQ(base64_encode_alloc(&a, "abc", 3, &enc, &elen), 0);
+	EXPECT_EQ(ctx.long_allocs, 1);
+	EXPECT_EQ(std::string(enc, elen), "YWJj");
+
+	base64_free(&a, enc);
+	EXPECT_EQ(ctx.live, 0);
+}
+
 // The C++ stream wrappers route their scratch buffers through the allocator
 // with the short-term hint, free them all, and still round-trip.
 TEST(Alloc, CppWrappersUseShortLifetime)
@@ -124,11 +137,11 @@ TEST(Alloc, CppWrappersUseShortLifetime)
 	const std::string in = b64test::pattern(5000);
 
 	TrackingCtx ectx;
-	b64_allocator ea = { tracking_realloc, &ectx };
 	std::istringstream is(in);
 	std::ostringstream os;
 	{
-		base64::encoder E(base64::encoder::BUFFERSIZE, &ea);
+		base64::encoder E = base64::encoder_builder()
+			.realloc(tracking_realloc, &ectx).build();
 		E.encode(is, os);
 	}
 	EXPECT_GT(ectx.short_allocs, 0);
@@ -136,11 +149,11 @@ TEST(Alloc, CppWrappersUseShortLifetime)
 	EXPECT_EQ(ectx.live, 0);          // wrapper frees its own scratch
 
 	TrackingCtx dctx;
-	b64_allocator da = { tracking_realloc, &dctx };
 	std::istringstream is2(os.str());
 	std::ostringstream os2;
 	{
-		base64::decoder D(base64::decoder::BUFFERSIZE, &da);
+		base64::decoder D = base64::decoder_builder()
+			.realloc(tracking_realloc, &dctx).build();
 		D.decode(is2, os2);
 	}
 	EXPECT_GT(dctx.short_allocs, 0);
