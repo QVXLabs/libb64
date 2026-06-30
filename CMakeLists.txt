@@ -56,45 +56,52 @@ macro(check_linker_flag FLAG VAR)
     endif()
 endmacro(check_linker_flag)
 
-if (B64_PIC)
-   add_compile_options(-fpic)
-endif()
-
 if (B64_SHARED)
    set(B64_LIB_TYPE SHARED)
 else()
     set(B64_LIB_TYPE STATIC)
 endif()
 
-check_linker_flag(-Wl,--gc-sections GC_SECTIONS_FLAG)
-check_linker_flag(-Wl,-dead_strip DEADSTRIP_FLAG)
-# Section flags are global (needed for the gc-sections/dead-strip linker
-# options below). The strict warning flags are applied per-target via
-# ${B64_STRICT_WARNINGS} so the vendored googletest/benchmark submodules
-# (added with add_subdirectory) are not compiled with -Werror -pedantic.
-add_compile_options(-ffunction-sections -fdata-sections)
-set(B64_STRICT_WARNINGS -Wall -Werror -pedantic)
-if (${GC_SECTIONS_FLAG})
-    add_link_options(-Wl,--gc-sections)
-elseif (${DEADSTRIP_FLAG})
-    add_link_options(-Wl,-dead_strip)
-endif()
+if (MSVC)
+    # The GNU/Clang flags below do not apply to MSVC; use its equivalents.
+    # /W4 /WX = high warning level, warnings-as-errors (applied per target
+    # via ${B64_STRICT_WARNINGS}). Optimization is left to CMake's defaults.
+    set(B64_STRICT_WARNINGS /W4 /WX)
+else()
+    if (B64_PIC)
+        add_compile_options(-fpic)
+    endif()
 
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_options(-fstack-protector-all -O0)
-    add_definitions(-DBUILD_DEBUG)
-elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
-    add_compile_options(-fmerge-all-constants -O3 -pg -fno-inline)
-    add_compile_definitions(-DBUILD_PROFILE -DNDEBUG)
-elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
-    add_compile_options(
-        -fmerge-all-constants
-        -fomit-frame-pointer
-        -O3
-        -fno-stack-protector)
-    add_compile_definitions(-DBUILD_RELEASE -DNDEBUG)
+    check_linker_flag(-Wl,--gc-sections GC_SECTIONS_FLAG)
+    check_linker_flag(-Wl,-dead_strip DEADSTRIP_FLAG)
+    # Section flags are global (needed for the gc-sections/dead-strip linker
+    # options below). The strict warning flags are applied per-target via
+    # ${B64_STRICT_WARNINGS} so the vendored googletest/benchmark submodules
+    # (added with add_subdirectory) are not compiled with -Werror -pedantic.
+    add_compile_options(-ffunction-sections -fdata-sections)
+    set(B64_STRICT_WARNINGS -Wall -Werror -pedantic)
+    if (${GC_SECTIONS_FLAG})
+        add_link_options(-Wl,--gc-sections)
+    elseif (${DEADSTRIP_FLAG})
+        add_link_options(-Wl,-dead_strip)
+    endif()
+
+    if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        add_compile_options(-fstack-protector-all -O0)
+        add_definitions(-DBUILD_DEBUG)
+    elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
+        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
+        add_compile_options(-fmerge-all-constants -O3 -pg -fno-inline)
+        add_compile_definitions(-DBUILD_PROFILE -DNDEBUG)
+    elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
+        add_compile_options(
+            -fmerge-all-constants
+            -fomit-frame-pointer
+            -O3
+            -fno-stack-protector)
+        add_compile_definitions(-DBUILD_RELEASE -DNDEBUG)
+    endif()
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
