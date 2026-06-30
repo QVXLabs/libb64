@@ -16,34 +16,19 @@ to 12 bytes with plain shifts/ORs on 16- then 32-bit reinterpretations
 
 #include <arm_neon.h>
 
-/* Gather from a constant 16-byte memory table using vector indices
-   (result[i] = tbl[idx[i]]); indices >= 16 yield 0. */
-static inline uint8x16_t neon_tbl16(const uint8_t tbl[16], uint8x16_t idx)
+/* 16-entry byte lookup: result[i] = tbl[idx[i]]; indices >= 16 yield 0.
+   Used both for the constant nibble LUTs (load them with vld1q_u8) and for
+   the final pack (table = the data vector). */
+static inline uint8x16_t neon_lut16(uint8x16_t tbl, uint8x16_t idx)
 {
 #if defined(__aarch64__)
-	return vqtbl1q_u8(vld1q_u8(tbl), idx);
+	return vqtbl1q_u8(tbl, idx);
 #else
 	uint8x8x2_t t;
-	t.val[0] = vld1_u8(tbl);
-	t.val[1] = vld1_u8(tbl + 8);
+	t.val[0] = vget_low_u8(tbl);
+	t.val[1] = vget_high_u8(tbl);
 	return vcombine_u8(vtbl2_u8(t, vget_low_u8(idx)),
 	                   vtbl2_u8(t, vget_high_u8(idx)));
-#endif
-}
-
-/* Shuffle bytes within a vector by a constant index pattern
-   (result[i] = data[idx[i]]); indices >= 16 yield 0. */
-static inline uint8x16_t neon_shuffle(uint8x16_t data, const uint8_t idx[16])
-{
-#if defined(__aarch64__)
-	return vqtbl1q_u8(data, vld1q_u8(idx));
-#else
-	uint8x8x2_t t;
-	uint8x16_t i = vld1q_u8(idx);
-	t.val[0] = vget_low_u8(data);
-	t.val[1] = vget_high_u8(data);
-	return vcombine_u8(vtbl2_u8(t, vget_low_u8(i)),
-	                   vtbl2_u8(t, vget_high_u8(i)));
 #endif
 }
 
@@ -68,8 +53,8 @@ static size_t decode_bulk_neon(const char* src, size_t len, char* dst)
 		uint8x16_t v = vld1q_u8((const uint8_t*)s);
 		uint8x16_t hi_nib = vshrq_n_u8(v, 4);
 		uint8x16_t lo_nib = vandq_u8(v, vdupq_n_u8(0x0f));
-		uint8x16_t lo = neon_tbl16(lut_lo, lo_nib);
-		uint8x16_t hi = neon_tbl16(lut_hi, hi_nib);
+		uint8x16_t lo = neon_lut16(vld1q_u8(lut_lo), lo_nib);
+		uint8x16_t hi = neon_lut16(vld1q_u8(lut_hi), hi_nib);
 
 		/* (lo & hi) != 0 in any lane => a non-alphabet byte; bail to scalar */
 		uint64x2_t err = vreinterpretq_u64_u8(vandq_u8(lo, hi));
@@ -77,7 +62,8 @@ static size_t decode_bulk_neon(const char* src, size_t len, char* dst)
 			break;
 
 		uint8x16_t eq2f = vceqq_u8(v, vdupq_n_u8(0x2f));
-		uint8x16_t roll = neon_tbl16(lut_roll, vaddq_u8(eq2f, hi_nib));
+		uint8x16_t roll =
+			neon_lut16(vld1q_u8(lut_roll), vaddq_u8(eq2f, hi_nib));
 		uint8x16_t vals = vaddq_u8(v, roll);
 
 		/* combine each pair of sextets -> 12-bit, then each pair of those
@@ -92,7 +78,8 @@ static size_t decode_bulk_neon(const char* src, size_t len, char* dst)
 			vshrq_n_u32(y, 16));
 
 		/* take the big-endian low 3 bytes of each 24-bit word -> 12 bytes */
-		uint8x16_t packed = neon_shuffle(vreinterpretq_u8_u32(w), pack_idx);
+		uint8x16_t packed =
+			neon_lut16(vreinterpretq_u8_u32(w), vld1q_u8(pack_idx));
 		unsigned char tmp[16];
 		vst1q_u8(tmp, packed);
 		__builtin_memcpy(d, tmp, 12);

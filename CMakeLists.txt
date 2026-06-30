@@ -24,19 +24,6 @@ include(CheckCSourceCompiles)
 option(B64_SHARED      "Enable shared library"            OFF)
 option(B64_PIC         "Enable Position independent code" OFF)
 
-if (NOT add_compile_definitions)
-    macro(add_compile_definitions)
-        add_definitions(${ARGV})
-    endmacro()
-endif()
-
-if (NOT add_link_options)
-    macro(add_link_options)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} ${ARGV}")
-        set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} ${ARGV}")
-    endmacro()
-endif()
-
 macro(check_linker_flag FLAG VAR)
     message("Performing Test ${VAR}")
     unset(${VAR})
@@ -69,9 +56,8 @@ endif()
 if (MSVC)
     # MSVC equivalent of the GNU/Clang flags in the else branch.
     set(B64_STRICT_WARNINGS /W4 /WX)
-    # Silence MSVC's fopen "unsafe" (C4996). -D required: the shim above
-    # forwards add_compile_definitions to add_definitions.
-    add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    # Silence MSVC's fopen "unsafe" deprecation (C4996).
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
     if (B64_PIC)
         add_compile_options(-fpic)
@@ -91,11 +77,11 @@ else()
 
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         add_compile_options(-fstack-protector-all -O0)
-        add_definitions(-DBUILD_DEBUG)
+        add_compile_definitions(BUILD_DEBUG)
     elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
         add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
         add_compile_options(-fmerge-all-constants -O3 -pg -fno-inline)
-        add_compile_definitions(-DBUILD_PROFILE -DNDEBUG)
+        add_compile_definitions(BUILD_PROFILE NDEBUG)
     elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
         add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
         add_compile_options(
@@ -103,7 +89,7 @@ else()
             -fomit-frame-pointer
             -O3
             -fno-stack-protector)
-        add_compile_definitions(-DBUILD_RELEASE -DNDEBUG)
+        add_compile_definitions(BUILD_RELEASE NDEBUG)
     endif()
 endif()
 
