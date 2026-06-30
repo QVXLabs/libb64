@@ -16,7 +16,8 @@ to 12 bytes with plain shifts/ORs on 16- then 32-bit reinterpretations
 
 #include <arm_neon.h>
 
-/* 16-entry byte table lookup; indices >= 16 yield 0. */
+/* Gather from a constant 16-byte memory table using vector indices
+   (result[i] = tbl[idx[i]]); indices >= 16 yield 0. */
 static inline uint8x16_t neon_tbl16(const uint8_t tbl[16], uint8x16_t idx)
 {
 #if defined(__aarch64__)
@@ -27,6 +28,22 @@ static inline uint8x16_t neon_tbl16(const uint8_t tbl[16], uint8x16_t idx)
 	t.val[1] = vld1_u8(tbl + 8);
 	return vcombine_u8(vtbl2_u8(t, vget_low_u8(idx)),
 	                   vtbl2_u8(t, vget_high_u8(idx)));
+#endif
+}
+
+/* Shuffle bytes within a vector by a constant index pattern
+   (result[i] = data[idx[i]]); indices >= 16 yield 0. */
+static inline uint8x16_t neon_shuffle(uint8x16_t data, const uint8_t idx[16])
+{
+#if defined(__aarch64__)
+	return vqtbl1q_u8(data, vld1q_u8(idx));
+#else
+	uint8x8x2_t t;
+	uint8x16_t i = vld1q_u8(idx);
+	t.val[0] = vget_low_u8(data);
+	t.val[1] = vget_high_u8(data);
+	return vcombine_u8(vtbl2_u8(t, vget_low_u8(i)),
+	                   vtbl2_u8(t, vget_high_u8(i)));
 #endif
 }
 
@@ -75,7 +92,7 @@ static size_t decode_bulk_neon(const char* src, size_t len, char* dst)
 			vshrq_n_u32(y, 16));
 
 		/* take the big-endian low 3 bytes of each 24-bit word -> 12 bytes */
-		uint8x16_t packed = neon_tbl16(pack_idx, vreinterpretq_u8_u32(w));
+		uint8x16_t packed = neon_shuffle(vreinterpretq_u8_u32(w), pack_idx);
 		unsigned char tmp[16];
 		vst1q_u8(tmp, packed);
 		__builtin_memcpy(d, tmp, 12);
