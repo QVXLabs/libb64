@@ -37,10 +37,10 @@ namespace base64
 
 		char* alloc_scratch(size_t n)
 		{
-			if (_alloc && _alloc->realloc_fn)
-				return static_cast<char*>(
-					_alloc->realloc_fn(_alloc->ctx, 0, n, B64_MEM_SHORT));
-			return new char[n];
+			return (_alloc && _alloc->realloc_fn)
+				? static_cast<char*>(
+					_alloc->realloc_fn(_alloc->ctx, 0, n, B64_MEM_SHORT))
+				: new char[n];
 		}
 
 		void free_scratch(char* p)
