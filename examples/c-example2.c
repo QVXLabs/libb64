@@ -27,13 +27,13 @@ encoding and decoding the data.
 void encode(FILE* inputFile, FILE* outputFile)
 {
 	/* set up a destination buffer large enough to hold the encoded data */
-	int size = SIZE;
+	size_t size = SIZE;
 	char* input = (char*)malloc(size);
 	char* encoded = (char*)malloc(2*size); /* ~4/3 x input */
 	/* we need an encoder and decoder state */
 	base64_encodestate es;
 	/* store the number of bytes encoded by a single call */
-	int cnt = 0;
+	size_t cnt = 0;
 	
 	/*---------- START ENCODING ----------*/
 	/* initialise the encoder state */
@@ -62,13 +62,13 @@ void encode(FILE* inputFile, FILE* outputFile)
 void decode(FILE* inputFile, FILE* outputFile)
 {
 	/* set up a destination buffer large enough to hold the decoded data */
-	int size = SIZE;
+	size_t size = SIZE;
 	char* encoded = (char*)malloc(size);
 	char* decoded = (char*)malloc(1*size); /* ~3/4 x encoded */
 	/* we need an encoder and decoder state */
 	base64_decodestate ds;
 	/* store the number of bytes encoded by a single call */
-	int cnt = 0;
+	size_t cnt = 0;
 	
 	/*---------- START DECODING ----------*/
 	/* initialise the encoder state */

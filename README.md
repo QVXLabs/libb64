@@ -1,6 +1,13 @@
 b64: Base64 Encoding/Decoding Routines
 ======================================
 
+[![linux-x86_64](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-x86_64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-x86_64.yml)
+[![linux-arm64](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-arm64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-linux-arm64.yml)
+[![macos-x86_64](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-x86_64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-x86_64.yml)
+[![macos-arm64](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-arm64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-macos-arm64.yml)
+[![windows-x86_64](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-x86_64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-x86_64.yml)
+[![windows-arm64](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-arm64.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci-windows-arm64.yml)
+
 Overview
 --------
 libb64 is a library of ANSI C routines for fast encoding/decoding data into and from a base64-encoded format. C++ wrappers are included, as well as the source code for standalone encoding and decoding executables.

@@ -1,0 +1,14 @@
+name: macos-x86_64
+
+# Intel macOS: no free hosted runner remains (macos-13 is scarce); macos-15-large is billed.
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  macos-x86_64:
+    uses: ./.github/workflows/_build.yml
+    with:
+      os: macos-15-large

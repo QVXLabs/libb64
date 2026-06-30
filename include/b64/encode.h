@@ -44,9 +44,10 @@ namespace base64
 				plaintext_out, &_state));
 		}
 
-		int encode_end(char* plaintext_out)
+		std::streamsize encode_end(char* plaintext_out)
 		{
-			return base64_encode_blockend(plaintext_out, &_state);
+			return static_cast<std::streamsize>(
+				base64_encode_blockend(plaintext_out, &_state));
 		}
 
 		void encode(std::istream& istream_in, std::ostream& ostream_in)

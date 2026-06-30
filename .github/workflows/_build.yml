@@ -1,0 +1,30 @@
+name: _build
+
+# Reusable build + test body called by the per-platform ci-* workflows, so
+# each platform gets its own badge while the build steps live in one place.
+# Dependencies resolve via the in-tree third-party/ submodule fallback
+# (googletest + benchmark), so no Conan is needed in CI. The cmake commands
+# are shell-agnostic, so each runner uses its default shell.
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure

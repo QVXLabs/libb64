@@ -6,11 +6,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Make Conan-provided packages discoverable. The Conan 1.x
-# cmake_find_package / cmake_find_package_multi generators write their
-# Find*.cmake / *Config.cmake files into the folder where `conan install`
-# runs (conventionally the CMake build dir), so put it on both search
-# paths up front. Harmless when Conan is not used.
+# Conan's cmake_find_package generators write their module/config files to
+# the build dir; put it on the search path (harmless without Conan).
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
 
@@ -56,45 +53,51 @@ macro(check_linker_flag FLAG VAR)
     endif()
 endmacro(check_linker_flag)
 
-if (B64_PIC)
-   add_compile_options(-fpic)
-endif()
-
 if (B64_SHARED)
    set(B64_LIB_TYPE SHARED)
 else()
     set(B64_LIB_TYPE STATIC)
 endif()
 
-check_linker_flag(-Wl,--gc-sections GC_SECTIONS_FLAG)
-check_linker_flag(-Wl,-dead_strip DEADSTRIP_FLAG)
-# Section flags are global (needed for the gc-sections/dead-strip linker
-# options below). The strict warning flags are applied per-target via
-# ${B64_STRICT_WARNINGS} so the vendored googletest/benchmark submodules
-# (added with add_subdirectory) are not compiled with -Werror -pedantic.
-add_compile_options(-ffunction-sections -fdata-sections)
-set(B64_STRICT_WARNINGS -Wall -Werror -pedantic)
-if (${GC_SECTIONS_FLAG})
-    add_link_options(-Wl,--gc-sections)
-elseif (${DEADSTRIP_FLAG})
-    add_link_options(-Wl,-dead_strip)
-endif()
+if (MSVC)
+    # MSVC equivalent of the GNU/Clang flags in the else branch.
+    set(B64_STRICT_WARNINGS /W4 /WX)
+    # Silence MSVC's fopen "unsafe" (C4996). -D required: the shim above
+    # forwards add_compile_definitions to add_definitions.
+    add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS)
+else()
+    if (B64_PIC)
+        add_compile_options(-fpic)
+    endif()
 
-if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    add_compile_options(-fstack-protector-all -O0)
-    add_definitions(-DBUILD_DEBUG)
-elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
-    add_compile_options(-fmerge-all-constants -O3 -pg -fno-inline)
-    add_compile_definitions(-DBUILD_PROFILE -DNDEBUG)
-elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
-    add_compile_options(
-        -fmerge-all-constants
-        -fomit-frame-pointer
-        -O3
-        -fno-stack-protector)
-    add_compile_definitions(-DBUILD_RELEASE -DNDEBUG)
+    check_linker_flag(-Wl,--gc-sections GC_SECTIONS_FLAG)
+    check_linker_flag(-Wl,-dead_strip DEADSTRIP_FLAG)
+    # Section flags stay global; strict warnings go per-target so the
+    # vendored submodules aren't built with -Werror -pedantic.
+    add_compile_options(-ffunction-sections -fdata-sections)
+    set(B64_STRICT_WARNINGS -Wall -Werror -pedantic)
+    if (${GC_SECTIONS_FLAG})
+        add_link_options(-Wl,--gc-sections)
+    elseif (${DEADSTRIP_FLAG})
+        add_link_options(-Wl,-dead_strip)
+    endif()
+
+    if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        add_compile_options(-fstack-protector-all -O0)
+        add_definitions(-DBUILD_DEBUG)
+    elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
+        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
+        add_compile_options(-fmerge-all-constants -O3 -pg -fno-inline)
+        add_compile_definitions(-DBUILD_PROFILE -DNDEBUG)
+    elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+        add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
+        add_compile_options(
+            -fmerge-all-constants
+            -fomit-frame-pointer
+            -O3
+            -fno-stack-protector)
+        add_compile_definitions(-DBUILD_RELEASE -DNDEBUG)
+    endif()
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -161,9 +164,8 @@ install(
     RUNTIME
       DESTINATION ${CMAKE_INSTALL_BINDIR}/examples)
 
-# tests & benchmarks — built by default only when libb64 is the top-level
-# project, so consumers that add_subdirectory() libb64 don't inherit the
-# test/benchmark targets and their dependencies.
+# Tests/benchmarks default on only when libb64 is the top-level project
+# (so add_subdirectory() consumers don't inherit them).
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(B64_IS_TOP_LEVEL TRUE)
 else()
@@ -172,24 +174,19 @@ endif()
 option(B64_BUILD_TESTS "Build libb64 tests and benchmarks" ${B64_IS_TOP_LEVEL})
 
 if (B64_BUILD_TESTS)
-    # Prefer Conan/system-provided packages; fall back to the vendored
-    # submodules under third-party/ when not found. (Conan's generated
-    # modules are found via CMAKE_MODULE_PATH/CMAKE_PREFIX_PATH set near
-    # the top of this file.)
+    # Prefer Conan/system packages; fall back to third-party/ submodules.
     find_package(GTest QUIET)
     find_package(benchmark QUIET)
 
-    # googletest 1.11 / benchmark 1.6.1 declare cmake_minimum_required
-    # below 3.5, which CMake >= 4.0 rejects. Relax the floor for the
-    # vendored subdirectories so the offline fallback still configures.
+    # googletest/benchmark declare cmake_minimum_required < 3.5, which
+    # CMake >= 4 rejects; relax the floor for those subdirectories.
     if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.31
             AND NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
         set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
     endif()
 
-    # Mark a vendored dependency's headers as SYSTEM so our -Werror
-    # -pedantic test/benchmark code isn't broken by third-party headers
-    # (the Conan/find_package imported targets already do this).
+    # Treat vendored headers as SYSTEM so -Werror -pedantic ignores them
+    # (find_package imported targets already do this).
     function(b64_mark_system)
         foreach(_t ${ARGN})
             if (TARGET ${_t})
@@ -205,8 +202,7 @@ if (B64_BUILD_TESTS)
     if (NOT GTest_FOUND)
         message(STATUS "GTest not found; using third-party/googletest")
         add_subdirectory(third-party/googletest EXCLUDE_FROM_ALL)
-        # googletest 1.11 does not export the namespaced targets that
-        # find_package(GTest) provides; alias them so consumers match.
+        # googletest 1.11 doesn't export the namespaced targets; alias them.
         if (NOT TARGET GTest::gtest_main)
             add_library(GTest::gtest_main ALIAS gtest_main)
         endif()
@@ -240,10 +236,8 @@ if (B64_BUILD_TESTS)
     include(GoogleTest)
     gtest_discover_tests(b64-test)
 
-    # microbenchmarks (Google Benchmark). Conan's find_package exposes a
-    # single benchmark::benchmark target that already bundles the default
-    # main(); the submodule splits it into benchmark::benchmark_main. Link
-    # whichever provides main() (the source does not define its own).
+    # Conan exposes one benchmark::benchmark (bundles main); the submodule
+    # splits out benchmark::benchmark_main. Link whichever has main().
     if (TARGET benchmark::benchmark_main)
         set(B64_BENCHMARK_MAIN benchmark::benchmark_main)
     else()
