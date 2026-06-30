@@ -5,10 +5,13 @@ libb64: Base64 Encoding/Decoding Routines
 
 Unreleased
 ----------
-* SIMD-accelerated encode/decode behind the existing API: x86 SSE4.1/AVX2 and ARM NEON (aarch64 + ARMv7-A), runtime-dispatched, with a portable scalar fallback — up to ~20x faster (AVX2)
+
+Version 2.1.0 Release
+---------------------
+* SIMD-accelerated encode/decode behind the existing API: x86 SSE4.1/AVX2 and ARM NEON (aarch64 + ARMv7-A), runtime-dispatched, with a portable scalar fallback — up to ~20x faster (AVX2). No public API, ABI, streaming, line-wrapping or decoder-tolerance changes
 * MSVC (cl.exe) builds now use the SSE4.1/AVX2 and NEON kernels too, via a CPUID/baseline dispatch, instead of falling back to the scalar core
-* Faster portable scalar core: 12-bit dual-char encode table (~1.4x) and a four-table SWAR decoder (~2x) over the previous scalar bulk loops
-* Table-driven scalar encode/decode rewrite (~3x) serving as the baseline and SIMD fallback; decode re-engages SIMD across MIME line wrapping
+* Faster portable scalar core (the SIMD fallback and residue path): a 12-bit dual-char encode table and a four-table SWAR decoder — ~3x encode / ~5x decode over the original byte-at-a-time code, even with SIMD disabled. Decode re-engages SIMD across MIME line wrapping
+* Fix a 1-byte heap overflow: base64_decode_maxlength under-sized the output buffer by one for input lengths ≡ 3 (mod 4), so the decoder's speculative store could write one byte past an exactly-sized buffer. Also harden base64_encode_length's overflow guard near SIZE_MAX and base64_encode_value against a negative-index read, and the base64 CLI now validates its mode before truncating the output and refuses identical input/output paths
 * CMake now defaults to a Release build when no build type is set
 * C++ stream wrappers size their output buffer with base64_encode_length / base64_decode_maxlength instead of a fixed 2*N / N — less memory, and fixes an overflow when line wrapping with a narrow width
 * Single top-level VERSION file is the authoritative version; b64/version.h is generated from it (BASE64_VERSION_MAJOR/MINOR/PATCH/STRING) and the existing per-header version macros now derive from it. Public headers also install under include/b64/ so <b64/...> includes resolve post-install
