@@ -26,7 +26,7 @@ Measured on an Intel Core i9-8950HK (Apple clang 17, `-O3`), throughput in MB/s 
 | 64 KiB     | 564 → **11,834** (21×) | 443 → **9,026** (20×) |
 | 1 MiB      | 563 → **11,542** (21×) | 441 → **9,094** (21×) |
 
-That's roughly **20× faster** at the L1/L2 sweet spot, settling into a memory-bound regime (~4–6 GB/s) for buffers past the last-level cache. SSE4.1-only x86 and ARM NEON land between the scalar and AVX2 tiers, and even the scalar fallback is several times the original. The public API, ABI, streaming semantics, line wrapping and decoder tolerance are all unchanged. See `BENCHMARKS.md` for the full sweep across sizes and data types, plus the method.
+That's roughly **20× faster** at the L1/L2 sweet spot, settling into a memory-bound regime (~4–6 GB/s) for buffers past the last-level cache. SSE4.1-only x86 and ARM NEON land between the scalar and AVX2 tiers. MSVC (cl.exe) builds also take the SSE4.1/AVX2 and NEON kernels now, selected by a CPUID/baseline check. The portable scalar fallback — used where no SIMD kernel applies — is itself table-driven (a 12-bit dual-char encode table and a four-table SWAR decoder), ~1.4× encode / ~2× decode over a plain byte loop. The public API, ABI, streaming semantics, line wrapping and decoder tolerance are all unchanged. See `BENCHMARKS.md` for the full sweep across sizes and data types, plus the method.
 
 References
 ----------

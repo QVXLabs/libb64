@@ -20,7 +20,7 @@ SSE4.1.
 /* SSE4.1: 16 input bytes (12 consumed) -> 16 output chars per iteration. The
    last iteration reads 4 bytes it does not consume; they are always within
    the buffer because the loop only runs while >= 16 bytes remain. */
-__attribute__((target("sse4.1")))
+B64_TARGET_SSE41
 static size_t encode_bulk_sse41(const unsigned char* src, size_t len,
                                 char* dst)
 {
@@ -65,7 +65,7 @@ static size_t encode_bulk_sse41(const unsigned char* src, size_t len,
 /* AVX2: 32 input bytes (24 consumed) -> 32 output chars per iteration. A
    dword permute moves each 128-bit lane's 12 source bytes into the same
    relative position so the SSE per-lane shuffle/extract applies to both. */
-__attribute__((target("avx2")))
+B64_TARGET_AVX2
 static size_t encode_bulk_avx2(const unsigned char* src, size_t len, char* dst)
 {
 	const __m256i perm = _mm256_setr_epi32(0, 1, 2, 3, 3, 4, 5, 6);
@@ -117,7 +117,7 @@ static size_t encode_bulk_none(const unsigned char* src, size_t len, char* dst)
 typedef size_t (*encode_fn)(const unsigned char*, size_t, char*);
 
 static size_t encode_resolve(const unsigned char*, size_t, char*);
-static encode_fn encode_impl = encode_resolve;
+static encode_fn B64_DISPATCH_VOLATILE encode_impl = encode_resolve;
 
 /* First call picks the kernel for this CPU and patches encode_impl; every
    later call dispatches straight through it, with no per-call
@@ -128,16 +128,16 @@ static encode_fn encode_impl = encode_resolve;
 static size_t encode_resolve(const unsigned char* src, size_t len, char* dst)
 {
 	encode_fn fn = encode_bulk_none;
-	if (__builtin_cpu_supports("avx2"))
+	if (b64_cpu_has_avx2())
 		fn = encode_bulk_avx2;
-	else if (__builtin_cpu_supports("sse4.1"))
+	else if (b64_cpu_has_sse41())
 		fn = encode_bulk_sse41;
-	__atomic_store_n(&encode_impl, fn, __ATOMIC_RELAXED);
+	B64_ATOMIC_STORE_PTR(encode_impl, fn);
 	return fn(src, len, dst);
 }
 
 size_t base64_encode_bulk_simd(const unsigned char* src, size_t len, char* dst)
 {
-	encode_fn fn = __atomic_load_n(&encode_impl, __ATOMIC_RELAXED);
+	encode_fn fn = B64_ATOMIC_LOAD_PTR(encode_impl);
 	return fn(src, len, dst);
 }
