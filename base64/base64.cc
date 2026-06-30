@@ -61,8 +61,8 @@ int main(int argc, char** argv)
 	
 	// Now try to open the output file
 	std::string output = argv[3];
-	// Again, note that we have to open the ouput in binary mode.
-	// Similiarly, we will most likely need to deal with zeros in the output stream when we
+	// Again, note that we have to open the output in binary mode.
+	// Similarly, we will most likely need to deal with zeros in the output stream when we
 	// are decoding, and the output stream has to be able to use these invalid text chars.
 	std::ofstream outstream(output.c_str(), std::ios_base::out | std::ios_base::binary);
 	if (!outstream.is_open())

@@ -19,7 +19,7 @@ SOURCES = base64.cc
 
 TARGETS = $(BINARIES)
 
-LINK.o = g++
+LINK.o = $(CXX)
 
 CFLAGS += -Werror -pedantic
 #CFLAGS += -DBUFFERSIZE=$(BUFFERSIZE)
@@ -37,7 +37,7 @@ all: $(TARGETS) #strip
 base64: libb64.a
 
 strip:
-	strip $(BINARIES) *.exe
+	$(STRIP) $(BINARIES) *.exe
 
 clean: clean_VisualStudioProject
 	rm -f *.exe* *.o $(TARGETS) *.bak *~

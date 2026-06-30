@@ -13,7 +13,7 @@ SOURCES = cdecode.c  cencode.c
 
 TARGETS = $(LIBRARIES)
 
-LINK.o = gcc
+LINK.o = $(CC)
 
 CFLAGS += -Werror -pedantic
 CFLAGS += -I../include
@@ -28,7 +28,7 @@ libb64.a: cencode.o cdecode.o
 	$(AR) $(ARFLAGS) $@ $^
 
 strip:
-	strip $(BINARIES) *.exe
+	$(STRIP) $(BINARIES) *.exe
 
 clean:
 	rm -f *.exe* *.o $(TARGETS) *.bak *~
