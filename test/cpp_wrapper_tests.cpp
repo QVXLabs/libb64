@@ -1,7 +1,4 @@
-/*
-Tests for the C++ wrapper classes base64::encoder / base64::decoder
-(include/b64/encode.h, decode.h), covering both the stream and block APIs.
-*/
+/* Tests for the C++ wrappers (base64::encoder/decoder), stream + block. */
 
 #include <gtest/gtest.h>
 
@@ -61,8 +58,7 @@ TEST(CppWrapper, BlockApiRoundTrip)
 	EXPECT_EQ(std::string(dec.data(), dn), in);
 }
 
-// A non-positive length is a no-op, not a cast to a huge size_t (which
-// would over-read). Zero and negative lengths both return 0.
+// Non-positive length is a no-op (not a huge size_t over-read).
 TEST(CppWrapper, NonPositiveLengthIsNoOp)
 {
 	char out[16];
@@ -76,10 +72,8 @@ TEST(CppWrapper, NonPositiveLengthIsNoOp)
 	EXPECT_EQ(d.decode("YWJj", -5, out), 0);
 }
 
-// Regression: the C++ decoder's constructor used to be empty, leaving
-// _state uninitialized so a fresh decoder's block API produced garbage. The
-// constructor now calls base64_init_decodestate(), so decoding works out of
-// the box without any manual initialization.
+// Regression: the decoder constructor was empty (uninitialized _state); it
+// now calls base64_init_decodestate(), so a fresh decoder works.
 TEST(CppWrapper, DecoderInitializedByConstructor_Regression)
 {
 	base64::decoder d;

@@ -1,17 +1,7 @@
 /*
-gendata.c - generate a deterministic data file for benchmarking libb64.
-
-Usage: b64-gendata <size> <binary|text|zeros> <outfile|->
-
-  size     byte count, optionally suffixed K/M/G (powers of 1024)
-  type     binary  pseudo-random full byte range (xorshift64)
-           text    repeating ASCII text
-           zeros   all 0x00
-  outfile  destination path, or "-" for stdout
-
-Data is written in chunks so any size (e.g. 1G) streams without buffering
-the whole file in memory. The binary stream matches the benchmark's own
-generator so results are reproducible.
+gendata.c - write a deterministic data file for benchmarking.
+Usage: b64-gendata <size[K|M|G]> <binary|text|zeros> <outfile|->
+Streams in chunks so any size works without buffering the whole file.
 */
 
 #include <stdint.h>
@@ -27,9 +17,8 @@ static int parse_size(const char* s, uint64_t* out)
 	unsigned long long v;
 	uint64_t mult = 1;
 
-	/* Require a leading digit. strtoull would otherwise silently accept a
-	   leading '-' and wrap it to a huge value; this also rejects '+',
-	   whitespace and empty input. */
+	/* require a leading digit; strtoull would otherwise wrap a leading
+	   '-' to a huge value */
 	if (s[0] < '0' || s[0] > '9')
 		return -1;
 
