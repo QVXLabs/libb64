@@ -103,19 +103,31 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
-# SIMD bulk kernels (encode + decode). They use GNU/Clang extensions
-# (__attribute__((target)), __builtin_cpu_supports, arm_neon.h), so select
-# them only for GNU/Clang on x86/ARM. MSVC, clang-cl and every other compiler
+# SIMD bulk kernels (encode + decode). The kernels carry a compiler-portable
+# abstraction (b64_internal.h): GNU/Clang/clang-cl use __attribute__((target))
+# + __builtin_cpu_supports; true cl.exe uses plain intrinsics gated by a CPUID
+# helper (cpu_features.c). CMAKE_C_COMPILER_ID is "Clang" for clang-cl and
+# "MSVC" only for cl.exe, so clang-cl rides the GNU/Clang path. Other compilers
 # get the scalar stubs.
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" B64_ARCH)
 set(B64_SIMD_SRCS src/cencode_simd_none.c src/cdecode_simd_none.c)
-if (NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     if (B64_ARCH MATCHES "x86_64|amd64|i[3-6]86")
         set(B64_SIMD_SRCS src/cencode_simd_sse.c src/cdecode_simd_sse.c)
     elseif (B64_ARCH MATCHES "aarch64|arm")
         # aarch64 always; ARMv7-A uses NEON only when built with it (the file
         # checks __ARM_NEON and otherwise falls back to scalar).
         set(B64_SIMD_SRCS src/cencode_simd_neon.c src/cdecode_simd_neon.c)
+    endif()
+elseif (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    # cl.exe emits SSE/AVX2 intrinsics without /arch, picked at runtime via
+    # cpu_features.c. On ARM64 NEON is baseline (cpu_features.c is a no-op TU).
+    if (B64_ARCH MATCHES "x86_64|amd64|x86|i[3-6]86")
+        set(B64_SIMD_SRCS
+            src/cencode_simd_sse.c src/cdecode_simd_sse.c src/cpu_features.c)
+    elseif (B64_ARCH MATCHES "aarch64|arm64|arm")
+        set(B64_SIMD_SRCS
+            src/cencode_simd_neon.c src/cdecode_simd_neon.c src/cpu_features.c)
     endif()
 endif()
 
@@ -259,6 +271,7 @@ if (B64_BUILD_TESTS)
         test/rfc_compliance_tests.cpp
         test/cpp_wrapper_tests.cpp
         test/simd_equivalence_tests.cpp
+        test/roundtrip_tests.cpp
         test/version_tests.cpp)
     target_include_directories(b64-test PRIVATE test src)
     target_compile_options(b64-test PRIVATE ${B64_STRICT_WARNINGS})
@@ -280,5 +293,13 @@ if (B64_BUILD_TESTS)
     # data-file generator for ad-hoc benchmarking / feeding the base64 CLI
     add_executable(b64-gendata tools/gendata.c)
     target_compile_options(b64-gendata PRIVATE ${B64_STRICT_WARNINGS})
+
+    # Lookup-table generators. Not part of the library; kept so the committed
+    # src/cencode12_table.h and src/cdecode_swar_table.h can be regenerated.
+    # Building them here is just a compile check.
+    add_executable(b64-gen-enc12 tools/gen_enc12.c)
+    target_compile_options(b64-gen-enc12 PRIVATE ${B64_STRICT_WARNINGS})
+    add_executable(b64-gen-dec4 tools/gen_dec4.c)
+    target_compile_options(b64-gen-dec4 PRIVATE ${B64_STRICT_WARNINGS})
 endif()
 

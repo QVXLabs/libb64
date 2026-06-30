@@ -14,11 +14,16 @@ via vtbl2 (available on both).
 
 #include "b64_internal.h"
 
-#if defined(__aarch64__) || defined(__ARM_NEON) || defined(__ARM_NEON__)
+#if defined(__aarch64__) || defined(__ARM_NEON) || defined(__ARM_NEON__) \
+	|| (defined(_MSC_VER) && defined(_M_ARM64))
 
-#include <arm_neon.h>
+#if defined(_MSC_VER) && defined(_M_ARM64)
+#  include <arm64_neon.h>
+#else
+#  include <arm_neon.h>
+#endif
 
-#if defined(__aarch64__)
+#if defined(__aarch64__) || (defined(_MSC_VER) && defined(_M_ARM64))
 
 static const uint8_t b64_alphabet[64] = {
 	'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P',
@@ -29,7 +34,18 @@ static const uint8_t b64_alphabet[64] = {
 
 static inline uint8x16_t neon_b64_ascii(uint8x16_t idx)
 {
+#if defined(_MSC_VER) && defined(_M_ARM64)
+	/* MSVC's NEON header lacks the vld1q_u8_x4 convenience load; build the
+	   4-register table from four plain quad loads. */
+	uint8x16x4_t tbl;
+	tbl.val[0] = vld1q_u8(b64_alphabet);
+	tbl.val[1] = vld1q_u8(b64_alphabet + 16);
+	tbl.val[2] = vld1q_u8(b64_alphabet + 32);
+	tbl.val[3] = vld1q_u8(b64_alphabet + 48);
+	return vqtbl4q_u8(tbl, idx);
+#else
 	return vqtbl4q_u8(vld1q_u8_x4(b64_alphabet), idx);
+#endif
 }
 
 #else /* ARMv7-A NEON: no q-register 64-entry table lookup */

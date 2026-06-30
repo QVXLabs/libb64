@@ -14,7 +14,7 @@ skip/padding semantics.
 #include <immintrin.h>
 #include <string.h>
 
-__attribute__((target("sse4.1")))
+B64_TARGET_SSE41
 static size_t decode_bulk_sse41(const char* src, size_t len, char* dst)
 {
 	const __m128i lut_lo = _mm_setr_epi8(
@@ -63,7 +63,7 @@ static size_t decode_bulk_sse41(const char* src, size_t len, char* dst)
 /* AVX2: 32 chars (clean) -> 24 bytes per iteration. Same algorithm as the
    SSE4.1 path on 256-bit vectors; a final dword gather compacts the two
    per-lane 12-byte results into a contiguous 24 bytes. */
-__attribute__((target("avx2")))
+B64_TARGET_AVX2
 static size_t decode_bulk_avx2(const char* src, size_t len, char* dst)
 {
 	const __m256i lut_lo = _mm256_setr_epi8(
@@ -125,7 +125,7 @@ static size_t decode_bulk_none(const char* src, size_t len, char* dst)
 typedef size_t (*decode_fn)(const char*, size_t, char*);
 
 static size_t decode_resolve(const char*, size_t, char*);
-static decode_fn decode_impl = decode_resolve;
+static decode_fn B64_DISPATCH_VOLATILE decode_impl = decode_resolve;
 
 /* First call picks the kernel for this CPU and patches decode_impl; every
    later call dispatches straight through it. Relaxed-atomic read/write of the
@@ -133,16 +133,16 @@ static decode_fn decode_impl = decode_resolve;
 static size_t decode_resolve(const char* src, size_t len, char* dst)
 {
 	decode_fn fn = decode_bulk_none;
-	if (__builtin_cpu_supports("avx2"))
+	if (b64_cpu_has_avx2())
 		fn = decode_bulk_avx2;
-	else if (__builtin_cpu_supports("sse4.1"))
+	else if (b64_cpu_has_sse41())
 		fn = decode_bulk_sse41;
-	__atomic_store_n(&decode_impl, fn, __ATOMIC_RELAXED);
+	B64_ATOMIC_STORE_PTR(decode_impl, fn);
 	return fn(src, len, dst);
 }
 
 size_t base64_decode_bulk_simd(const char* src, size_t len, void* dst)
 {
-	decode_fn fn = __atomic_load_n(&decode_impl, __ATOMIC_RELAXED);
+	decode_fn fn = B64_ATOMIC_LOAD_PTR(decode_impl);
 	return fn(src, len, (char*)dst);
 }
