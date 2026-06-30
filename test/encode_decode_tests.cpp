@@ -59,6 +59,23 @@ TEST(Encode, ClassicVectors)
 		EXPECT_EQ(encode(v.plain), v.encoded) << "plain=\"" << v.plain << "\"";
 }
 
+// After a no-wrap (chars_per_line == 0) block, stepcount must equal the
+// number of chars emitted, exactly as the per-char path leaves it -- so the
+// bulk/SIMD paths don't desync state if wrapping is enabled mid-stream.
+TEST(Encode, BulkMaintainsStepcount)
+{
+	for (size_t n : {size_t(64), size_t(1000), size_t(70000)})
+	{
+		std::string in = pattern(n);
+		base64_encodestate s;
+		base64_init_encodestate(&s);
+		std::vector<char> out(base64_encode_length(in.size(), &s) + 1, '\0');
+		size_t chars = base64_encode_block(in.data(), in.size(),
+		                                   out.data(), &s);
+		EXPECT_EQ(s.stepcount, chars) << "n=" << n;
+	}
+}
+
 TEST(Decode, Rfc4648Vectors)
 {
 	for (const Vector& v : kRfc4648)

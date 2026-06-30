@@ -103,6 +103,7 @@ size_t base64_encode_block_scalar(const void* plaintext_in, const size_t length_
 			   clean step_A boundary with line wrapping disabled. */
 			if (cpl == 0)
 			{
+				char* const bulk = codechar;
 				for (; plainchar + 3 <= plaintextend;
 				     codechar += 4, plainchar += 3)
 				{
@@ -114,6 +115,10 @@ size_t base64_encode_block_scalar(const void* plaintext_in, const size_t length_
 					codechar[2] = encoding[((f1 & 0x0f) << 2) | (f2 >> 6)];
 					codechar[3] = encoding[f2 & 0x3f];
 				}
+				/* the per-char path bumps stepcount once per emitted char
+				   (via CHECK_BREAK); match that for the bulk output so the
+				   state is identical if wrapping is enabled later. */
+				state_in->stepcount += (size_t)(codechar - bulk);
 			}
 
 			if (plainchar == plaintextend)
@@ -179,6 +184,7 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 		if (consumed)
 		{
 			size_t produced = consumed / 3 * 4;
+			state_in->stepcount += produced;  /* SIMD emitted these chars */
 			return produced + base64_encode_block_scalar(
 				(const unsigned char*)plaintext_in + consumed,
 				length_in - consumed, code_out + produced, state_in);
