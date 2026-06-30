@@ -1,3 +1,70 @@
+# libb64 microbenchmarks
+
+The `b64-benchmark` target (built alongside the test suite, see
+`benchmark/main.cpp`) measures encode/decode throughput across a range of
+input sizes and data types using [Google Benchmark](https://github.com/google/benchmark).
+
+## Running
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target b64-benchmark
+./build/bin/b64-benchmark --benchmark_min_time=0.1
+```
+
+The companion `b64-gendata` tool writes a deterministic data file (any
+size, `binary`/`text`/`zeros`) for ad-hoc testing or feeding the `base64`
+CLI, e.g. `b64-gendata 1G binary data.bin`.
+
+## Environment
+
+| | |
+|---|---|
+| CPU      | Intel Core i9-8950HK @ 2.90 GHz |
+| Compiler | Apple clang 17.0.0, `-O3` (Release) |
+| Library  | Google Benchmark 1.6.1, single-threaded |
+| Date     | 2026-06-30 |
+
+## Results
+
+Throughput in MB/s (1 MB = 10^6 bytes) of **plaintext** processed, for
+pseudo-random binary input:
+
+| Input size | Encode | Decode | Decode (76-col wrapped) |
+|-----------:|-------:|-------:|------------------------:|
+| 64 B       | 508    | 359    | 388 |
+| 256 B      | 553    | 444    | 409 |
+| 4 KiB      | 577    | 462    | 409 |
+| 64 KiB     | 564    | 443    | 433 |
+| 1 MiB      | 563    | 441    | 423 |
+| 16 MiB     | 584    | 427    | 413 |
+| 256 MiB    | 542    | 433    | 413 |
+| 1 GiB      | 366*   | 391    | 407 |
+
+## Observations
+
+- **Peak ~580 MB/s encode, ~460 MB/s decode** on this box; encode is
+  consistently a little faster than decode.
+- **Sweet spot is L1/L2-resident buffers** (4–64 KiB). Very small inputs
+  pay a fixed per-call cost; beyond the cache size throughput settles into
+  a memory-bound regime (~420–540 MB/s).
+- **Data-independent.** Across binary, ASCII-text and all-zero inputs the
+  throughput agreed within ~15% — base64 is a fixed per-byte transform
+  with no data-dependent branches on valid input.
+- **MIME line-wrapped input** makes the decoder skip a newline every 76
+  chars; in practice it tracks plain decode within a few percent (the
+  newline test is a cheap `< '+'` rejection), staying ~410–430 MB/s.
+- \* The 1 GiB figures are single-iteration and dominated by memory
+  bandwidth/TLB effects, so they are noisier (text and zeros encode at
+  ~520–560 MB/s at the same size); treat them as ballpark.
+
+These are indicative numbers from one developer machine, not an
+authoritative cross-platform comparison.
+
+---
+
+# Historical comparison (2010)
+
 ## Intro
 
 Some people have expressed opinions about how fast libb64's encoding and decoding routines are, as compared to some other BASE64 packages out there.

@@ -2,3 +2,5 @@
 depend
 *.o
 *.a
+build/
+cmake-build-*/
