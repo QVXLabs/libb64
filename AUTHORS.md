@@ -21,6 +21,7 @@ Esben Haabendal    | esben@haabendal.dk — Prepare makefiles for cross-compilat
 Mike Gelfand       | mikedld@mikedld.com — Include <stddef.h> for size_t definition
 GekkieHenkie       | https://github.com/GekkieHenkie — Replace #elseif with #elif in ccommon.h
 Cœur               | coeur@gmx.fr — Documentation typo fixes
+Ardavon Falls      | afalls@qvxlabs.com — SIMD encode/decode (SSE4.1/AVX2, NEON), CMake/CI
 
 Patches by
 ------------

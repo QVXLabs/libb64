@@ -7,6 +7,11 @@ For details, see http://sourceforge.net/projects/libb64
 
 #include <b64/cencode.h>
 
+#include "b64_internal.h"
+
+static const char encoding[] =
+	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 void base64_init_encodestate(base64_encodestate* state_in)
 {
 	state_in->step = step_A;
@@ -62,7 +67,6 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 
 char base64_encode_value(signed char value_in)
 {
-	static const char* encoding = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 	if (value_in > 63) return '=';
 	return encoding[(int)value_in];
 }
@@ -78,7 +82,7 @@ do						\
   state_in->stepcount++;			\
 } while(0);
 
-size_t base64_encode_block(const void* plaintext_in, const size_t length_in, char* code_out, base64_encodestate* state_in)
+size_t base64_encode_block_scalar(const void* plaintext_in, const size_t length_in, char* code_out, base64_encodestate* state_in)
 {
 	const char* plainchar = plaintext_in;
 	const char* const plaintextend = plainchar + length_in;
@@ -94,6 +98,29 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 		for(;;)
 		{
 	case step_A:
+			/* no-wrap bulk path: encode whole 3-byte triples to 4
+			   chars with no per-char state writes. Only valid at a
+			   clean step_A boundary with line wrapping disabled. */
+			if (cpl == 0)
+			{
+				char* const bulk = codechar;
+				for (; plainchar + 3 <= plaintextend;
+				     codechar += 4, plainchar += 3)
+				{
+					unsigned f0 = (unsigned char)plainchar[0];
+					unsigned f1 = (unsigned char)plainchar[1];
+					unsigned f2 = (unsigned char)plainchar[2];
+					codechar[0] = encoding[f0 >> 2];
+					codechar[1] = encoding[((f0 & 0x03) << 4) | (f1 >> 4)];
+					codechar[2] = encoding[((f1 & 0x0f) << 2) | (f2 >> 6)];
+					codechar[3] = encoding[f2 & 0x3f];
+				}
+				/* the per-char path bumps stepcount once per emitted char
+				   (via CHECK_BREAK); match that for the bulk output so the
+				   state is identical if wrapping is enabled later. */
+				state_in->stepcount += (size_t)(codechar - bulk);
+			}
+
 			if (plainchar == plaintextend)
 			{
 				state_in->result = result;
@@ -105,7 +132,7 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 
 			fragment = *plainchar++;
 			result = (fragment & 0x0fc) >> 2;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 			result = (fragment & 0x003) << 4;
 	case step_B:
 			if (plainchar == plaintextend)
@@ -119,7 +146,7 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 
 			fragment = *plainchar++;
 			result |= (fragment & 0x0f0) >> 4;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 			result = (fragment & 0x00f) << 2;
 	case step_C:
 			if (plainchar == plaintextend)
@@ -133,16 +160,38 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 
 			fragment = *plainchar++;
 			result |= (fragment & 0x0c0) >> 6;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 
 			CHECK_BREAK();
 
 			result = (fragment & 0x03f) >> 0;
-			*codechar++ = base64_encode_value(result);
+			*codechar++ = encoding[(int)result];
 		}
 	}
 	/* control should not reach here */
 	return (size_t) (codechar - code_out);
+}
+
+size_t base64_encode_block(const void* plaintext_in, const size_t length_in, char* code_out, base64_encodestate* state_in)
+{
+	/* SIMD bulk only from a clean step_A boundary with no line wrapping;
+	   the scalar core finishes the residue and maintains stream state.
+	   base64_encode_bulk_simd returns 0 when no SIMD path applies. */
+	if (state_in->step == step_A && state_in->chars_per_line == 0)
+	{
+		size_t consumed = base64_encode_bulk_simd(
+			(const unsigned char*)plaintext_in, length_in, code_out);
+		if (consumed)
+		{
+			size_t produced = consumed / 3 * 4;
+			state_in->stepcount += produced;  /* SIMD emitted these chars */
+			return produced + base64_encode_block_scalar(
+				(const unsigned char*)plaintext_in + consumed,
+				length_in - consumed, code_out + produced, state_in);
+		}
+	}
+	return base64_encode_block_scalar(plaintext_in, length_in, code_out,
+	                                  state_in);
 }
 
 size_t base64_encode_blockend(char* code_out, base64_encodestate* state_in)

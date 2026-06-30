@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 project(B64 VERSION 2.0.0 LANGUAGES C CXX)
 
+# Default to an optimized Release build when no type is chosen. Single-config
+# generators otherwise leave CMAKE_BUILD_TYPE empty, which yields -O0; the
+# guard skips multi-config generators (they use CMAKE_CONFIGURATION_TYPES).
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 # GoogleTest 1.11 and Google Benchmark 1.6 require C++14.
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,19 +23,6 @@ include(CheckCSourceCompiles)
 
 option(B64_SHARED      "Enable shared library"            OFF)
 option(B64_PIC         "Enable Position independent code" OFF)
-
-if (NOT add_compile_definitions)
-    macro(add_compile_definitions)
-        add_definitions(${ARGV})
-    endmacro()
-endif()
-
-if (NOT add_link_options)
-    macro(add_link_options)
-        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} ${ARGV}")
-        set(CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} ${ARGV}")
-    endmacro()
-endif()
 
 macro(check_linker_flag FLAG VAR)
     message("Performing Test ${VAR}")
@@ -62,9 +56,8 @@ endif()
 if (MSVC)
     # MSVC equivalent of the GNU/Clang flags in the else branch.
     set(B64_STRICT_WARNINGS /W4 /WX)
-    # Silence MSVC's fopen "unsafe" (C4996). -D required: the shim above
-    # forwards add_compile_definitions to add_definitions.
-    add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS)
+    # Silence MSVC's fopen "unsafe" deprecation (C4996).
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
     if (B64_PIC)
         add_compile_options(-fpic)
@@ -84,11 +77,11 @@ else()
 
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         add_compile_options(-fstack-protector-all -O0)
-        add_definitions(-DBUILD_DEBUG)
+        add_compile_definitions(BUILD_DEBUG)
     elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
         add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
         add_compile_options(-fmerge-all-constants -O3 -pg -fno-inline)
-        add_compile_definitions(-DBUILD_PROFILE -DNDEBUG)
+        add_compile_definitions(BUILD_PROFILE NDEBUG)
     elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
         add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
         add_compile_options(
@@ -96,13 +89,29 @@ else()
             -fomit-frame-pointer
             -O3
             -fno-stack-protector)
-        add_compile_definitions(-DBUILD_RELEASE -DNDEBUG)
+        add_compile_definitions(BUILD_RELEASE NDEBUG)
     endif()
 endif()
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# SIMD bulk kernels (encode + decode). They use GNU/Clang extensions
+# (__attribute__((target)), __builtin_cpu_supports, arm_neon.h), so select
+# them only for GNU/Clang on x86/ARM. MSVC, clang-cl and every other compiler
+# get the scalar stubs.
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" B64_ARCH)
+set(B64_SIMD_SRCS src/cencode_simd_none.c src/cdecode_simd_none.c)
+if (NOT MSVC AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    if (B64_ARCH MATCHES "x86_64|amd64|i[3-6]86")
+        set(B64_SIMD_SRCS src/cencode_simd_sse.c src/cdecode_simd_sse.c)
+    elseif (B64_ARCH MATCHES "aarch64|arm")
+        # aarch64 always; ARMv7-A uses NEON only when built with it (the file
+        # checks __ARM_NEON and otherwise falls back to scalar).
+        set(B64_SIMD_SRCS src/cencode_simd_neon.c src/cdecode_simd_neon.c)
+    endif()
+endif()
 
 # libb64
 add_library(
@@ -111,10 +120,12 @@ add_library(
     include/b64/ccommon.h
     include/b64/cdecode.h
     include/b64/cencode.h
-    include/b64/decode.h
     include/b64/encode.h
+    include/b64/decode.h
+    src/b64_internal.h
     src/cencode.c
-    src/cdecode.c)
+    src/cdecode.c
+    ${B64_SIMD_SRCS})
 target_include_directories(
     b64
     PUBLIC ./include)
@@ -229,8 +240,9 @@ if (B64_BUILD_TESTS)
         test/encode_decode_tests.cpp
         test/regression_tests.cpp
         test/rfc_compliance_tests.cpp
-        test/cpp_wrapper_tests.cpp)
-    target_include_directories(b64-test PRIVATE test)
+        test/cpp_wrapper_tests.cpp
+        test/simd_equivalence_tests.cpp)
+    target_include_directories(b64-test PRIVATE test src)
     target_compile_options(b64-test PRIVATE ${B64_STRICT_WARNINGS})
     target_link_libraries(b64-test PRIVATE b64 GTest::gtest_main)
     include(GoogleTest)

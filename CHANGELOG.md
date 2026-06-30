@@ -3,6 +3,12 @@ libb64: Base64 Encoding/Decoding Routines
 
 ## Changelog ##
 
+Unreleased
+----------
+* SIMD-accelerated encode/decode behind the existing API: x86 SSE4.1/AVX2 and ARM NEON (aarch64 + ARMv7-A), runtime-dispatched, with a portable scalar fallback — up to ~20x faster (AVX2)
+* Table-driven scalar encode/decode rewrite (~3x) serving as the baseline and SIMD fallback; decode re-engages SIMD across MIME line wrapping
+* CMake now defaults to a Release build when no build type is set
+
 Version 2.0.0 Release
 ---------------------
 * Introduce version macros for detection of incompatible API / version
