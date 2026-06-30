@@ -50,7 +50,10 @@ namespace base64
 			//
 			const int N = _buffersize;
 			char* code = new char[N];
-			char* plaintext = new char[N];
+			/* Decoded output is at most ~3/4 of the input; size it that way
+			   instead of a full N. */
+			char* plaintext = new char[base64_decode_maxlength(
+				static_cast<size_t>(N))];
 			std::streamsize codelength;
 			std::streamsize plainlength;
 

@@ -54,7 +54,13 @@ namespace base64
 		{
 			const int N = _buffersize;
 			char* plaintext = new char[N];
-			char* code = new char[2 * N];
+			/* Size the output to what N input bytes actually encode to at the
+			   current line width (base64_encode_length accounts for wrapping
+			   newlines); the small constant covers the mid-stream carry. The
+			   old 2*N was both wasteful when unwrapped and too small for very
+			   narrow line widths. */
+			char* code = new char[
+				base64_encode_length(static_cast<size_t>(N), &_state) + 16];
 			std::streamsize plainlength;
 			std::streamsize codelength;
 
