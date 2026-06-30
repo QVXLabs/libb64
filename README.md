@@ -18,15 +18,25 @@ Performance
 -----------
 This version adds SIMD-accelerated encode/decode behind the unchanged C API. At load time the library selects the fastest path the CPU supports — AVX2 or SSE4.1 on x86, NEON on ARM — and falls back to a portable table-driven scalar core everywhere else, so a single binary runs everywhere.
 
-Measured on an Intel Core i9-8950HK (Apple clang 17, `-O3`), throughput in MB/s of plaintext for cache-resident buffers — the original byte-at-a-time code vs. this version:
+Throughput in MB/s of plaintext on an Intel Core i9-8950HK (Apple clang 17, `-O3`), cache-resident buffers, for three builds: **stock** (the original byte-at-a-time code), this version's portable **scalar** core with SIMD disabled, and this version's **SIMD** path (AVX2 here):
 
-| Input size | Encode (was → now)     | Decode (was → now)    |
-|-----------:|------------------------|-----------------------|
-| 4 KiB      | 577 → **12,900** (22×) | 462 → **7,497** (16×) |
-| 64 KiB     | 564 → **11,834** (21×) | 443 → **9,026** (20×) |
-| 1 MiB      | 563 → **11,542** (21×) | 441 → **9,094** (21×) |
+Encode:
 
-That's roughly **20× faster** at the L1/L2 sweet spot, settling into a memory-bound regime (~4–6 GB/s) for buffers past the last-level cache. SSE4.1-only x86 and ARM NEON land between the scalar and AVX2 tiers. MSVC (cl.exe) builds also take the SSE4.1/AVX2 and NEON kernels now, selected by a CPUID/baseline check. The portable scalar fallback — used where no SIMD kernel applies — is itself table-driven (a 12-bit dual-char encode table and a four-table SWAR decoder), ~1.4× encode / ~2× decode over a plain byte loop. The public API, ABI, streaming semantics, line wrapping and decoder tolerance are all unchanged. See `BENCHMARKS.md` for the full sweep across sizes and data types, plus the method.
+| Input size | stock | scalar (non-SIMD) | SIMD         |
+|-----------:|------:|------------------:|-------------:|
+| 4 KiB      |   668 |   2,311 (3.5×)    | 12,940 (19×) |
+| 64 KiB     |   664 |   2,149 (3.2×)    | 12,707 (19×) |
+| 1 MiB      |   665 |   2,232 (3.4×)    | 12,387 (19×) |
+
+Decode:
+
+| Input size | stock | scalar (non-SIMD) | SIMD         |
+|-----------:|------:|------------------:|-------------:|
+| 4 KiB      |   464 |   2,444 (5.3×)    |  9,337 (20×) |
+| 64 KiB     |   471 |   2,482 (5.3×)    |  9,734 (21×) |
+| 1 MiB      |   465 |   2,415 (5.2×)    |  8,982 (19×) |
+
+So even with SIMD disabled the table-driven scalar core (a 12-bit dual-char encode table and a four-table SWAR decoder) runs ~3× faster on encode and ~5× on decode than stock; with SIMD it's ~19–20× at the L1/L2 sweet spot, settling into a memory-bound regime (~4–6 GB/s) for buffers past the last-level cache. SSE4.1-only x86 and ARM NEON land between the scalar and AVX2 tiers. MSVC (cl.exe) builds also take the SSE4.1/AVX2 and NEON kernels now, selected by a CPUID/baseline check. The public API, ABI, streaming semantics, line wrapping and decoder tolerance are all unchanged. See `BENCHMARKS.md` for the full sweep across sizes and data types, plus the method.
 
 References
 ----------

@@ -42,15 +42,31 @@ this CPU):
 | 256 MiB    |  4,036 |  4,793 | 1,376 |
 | 1 GiB      | 3,573* | 1,137* | 1,625* |
 
-### Speedup vs. the original byte-at-a-time implementation
+### Stock vs. scalar vs. SIMD
 
-Same machine, plaintext MB/s for cache-resident buffers:
+Three builds on the same machine, measured by a single equal-conditions
+tight-loop harness (5-run average, plaintext MB/s, cache-resident buffers):
+**stock** is the original byte-at-a-time coroutine; **scalar** is this version's
+portable table core with SIMD disabled (`base64_*_block_scalar`); **SIMD** is
+the dispatched AVX2 path. (This harness has less per-call overhead than the
+Google Benchmark sweep above, so its small-buffer SIMD figures run a little
+higher; the sweep is the authoritative absolute SIMD detail.)
 
-| Input size | Encode (orig → SIMD) | Decode (orig → SIMD) |
-|-----------:|----------------------|----------------------|
-| 4 KiB      | 577 → 12,900 (22×)   | 462 → 7,497 (16×)    |
-| 64 KiB     | 564 → 11,834 (21×)   | 443 → 9,026 (20×)    |
-| 1 MiB      | 563 → 11,542 (21×)   | 441 → 9,094 (21×)    |
+Encode:
+
+| Input size | stock | scalar (non-SIMD) | SIMD         |
+|-----------:|------:|------------------:|-------------:|
+| 4 KiB      |   668 |   2,311 (3.5×)    | 12,940 (19×) |
+| 64 KiB     |   664 |   2,149 (3.2×)    | 12,707 (19×) |
+| 1 MiB      |   665 |   2,232 (3.4×)    | 12,387 (19×) |
+
+Decode:
+
+| Input size | stock | scalar (non-SIMD) | SIMD         |
+|-----------:|------:|------------------:|-------------:|
+| 4 KiB      |   464 |   2,444 (5.3×)    |  9,337 (20×) |
+| 64 KiB     |   471 |   2,482 (5.3×)    |  9,734 (21×) |
+| 1 MiB      |   465 |   2,415 (5.2×)    |  8,982 (19×) |
 
 ## Observations
 
@@ -75,24 +91,18 @@ authoritative cross-platform comparison.
 
 ## Scalar core (portable fallback)
 
-The table-driven scalar core runs on targets without a SIMD kernel and
-finishes the residue/dirty bytes the SIMD path hands back. It uses a 12-bit
-dual-char encode table (two lookups per 3-byte triple) and a four-32-bit-table
-SWAR decoder (four ORs + one sentinel test per 4-char quad).
+The table-driven scalar core (the **scalar** column above) runs on targets
+without a SIMD kernel and finishes the residue/dirty bytes the SIMD path hands
+back. It uses a 12-bit dual-char encode table (two lookups per 3-byte triple)
+and a four-32-bit-table SWAR decoder (four ORs + one sentinel test per 4-char
+quad). With SIMD disabled it is **~3.3× faster on encode and ~5.2× on decode
+than stock** — a worthwhile win on its own for non-x86/ARM targets and the
+SIMD residue path.
 
-Measured against the previous straight scalar bulk loops with a separate
-in-loop micro-benchmark (1 MiB buffer, `-O3`, plaintext MB/s):
-
-| Path   | before | after | speedup |
-|--------|-------:|------:|--------:|
-| Encode |  1,444 | 2,054 | 1.42×   |
-| Decode |  1,225 | 2,472 | 2.02×   |
-
-Absolute numbers are machine-specific (this is not the AVX2 host above and the
-loop differs from the Google Benchmark harness); the ratios are the point.
-These paths only run where no SIMD kernel applies — and note that **MSVC
-(cl.exe) builds now use the SSE4.1/AVX2 and NEON kernels** via a CPUID/baseline
-dispatch, where they previously fell back to this scalar core for everything.
+Note that **MSVC (cl.exe) builds now use the SSE4.1/AVX2 and NEON kernels** via
+a CPUID/baseline dispatch, where they previously fell back to this scalar core
+for everything — so on Windows the SIMD column, not the scalar column, now
+applies.
 
 ---
 
