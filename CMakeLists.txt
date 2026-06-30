@@ -6,11 +6,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Make Conan-provided packages discoverable. The Conan 1.x
-# cmake_find_package / cmake_find_package_multi generators write their
-# Find*.cmake / *Config.cmake files into the folder where `conan install`
-# runs (conventionally the CMake build dir), so put it on both search
-# paths up front. Harmless when Conan is not used.
+# Conan's cmake_find_package generators write their module/config files to
+# the build dir; put it on the search path (harmless without Conan).
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
 list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
 
@@ -63,14 +60,10 @@ else()
 endif()
 
 if (MSVC)
-    # The GNU/Clang flags below do not apply to MSVC; use its equivalents.
-    # /W4 /WX = high warning level, warnings-as-errors (applied per target
-    # via ${B64_STRICT_WARNINGS}). Optimization is left to CMake's defaults.
+    # MSVC equivalent of the GNU/Clang flags in the else branch.
     set(B64_STRICT_WARNINGS /W4 /WX)
-    # The MSVC CRT flags fopen() etc. as "unsafe" (C4996); we use standard
-    # C I/O deliberately, so silence that deprecation. NOTE: this file's
-    # add_compile_definitions shim forwards to add_definitions(), so the
-    # -D prefix must be included (as elsewhere, e.g. -DBUILD_RELEASE).
+    # Silence MSVC's fopen "unsafe" (C4996). -D required: the shim above
+    # forwards add_compile_definitions to add_definitions.
     add_compile_definitions(-D_CRT_SECURE_NO_WARNINGS)
 else()
     if (B64_PIC)
@@ -79,10 +72,8 @@ else()
 
     check_linker_flag(-Wl,--gc-sections GC_SECTIONS_FLAG)
     check_linker_flag(-Wl,-dead_strip DEADSTRIP_FLAG)
-    # Section flags are global (needed for the gc-sections/dead-strip linker
-    # options below). The strict warning flags are applied per-target via
-    # ${B64_STRICT_WARNINGS} so the vendored googletest/benchmark submodules
-    # (added with add_subdirectory) are not compiled with -Werror -pedantic.
+    # Section flags stay global; strict warnings go per-target so the
+    # vendored submodules aren't built with -Werror -pedantic.
     add_compile_options(-ffunction-sections -fdata-sections)
     set(B64_STRICT_WARNINGS -Wall -Werror -pedantic)
     if (${GC_SECTIONS_FLAG})
@@ -173,9 +164,8 @@ install(
     RUNTIME
       DESTINATION ${CMAKE_INSTALL_BINDIR}/examples)
 
-# tests & benchmarks — built by default only when libb64 is the top-level
-# project, so consumers that add_subdirectory() libb64 don't inherit the
-# test/benchmark targets and their dependencies.
+# Tests/benchmarks default on only when libb64 is the top-level project
+# (so add_subdirectory() consumers don't inherit them).
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(B64_IS_TOP_LEVEL TRUE)
 else()
@@ -184,24 +174,19 @@ endif()
 option(B64_BUILD_TESTS "Build libb64 tests and benchmarks" ${B64_IS_TOP_LEVEL})
 
 if (B64_BUILD_TESTS)
-    # Prefer Conan/system-provided packages; fall back to the vendored
-    # submodules under third-party/ when not found. (Conan's generated
-    # modules are found via CMAKE_MODULE_PATH/CMAKE_PREFIX_PATH set near
-    # the top of this file.)
+    # Prefer Conan/system packages; fall back to third-party/ submodules.
     find_package(GTest QUIET)
     find_package(benchmark QUIET)
 
-    # googletest 1.11 / benchmark 1.6.1 declare cmake_minimum_required
-    # below 3.5, which CMake >= 4.0 rejects. Relax the floor for the
-    # vendored subdirectories so the offline fallback still configures.
+    # googletest/benchmark declare cmake_minimum_required < 3.5, which
+    # CMake >= 4 rejects; relax the floor for those subdirectories.
     if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.31
             AND NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
         set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
     endif()
 
-    # Mark a vendored dependency's headers as SYSTEM so our -Werror
-    # -pedantic test/benchmark code isn't broken by third-party headers
-    # (the Conan/find_package imported targets already do this).
+    # Treat vendored headers as SYSTEM so -Werror -pedantic ignores them
+    # (find_package imported targets already do this).
     function(b64_mark_system)
         foreach(_t ${ARGN})
             if (TARGET ${_t})
@@ -217,8 +202,7 @@ if (B64_BUILD_TESTS)
     if (NOT GTest_FOUND)
         message(STATUS "GTest not found; using third-party/googletest")
         add_subdirectory(third-party/googletest EXCLUDE_FROM_ALL)
-        # googletest 1.11 does not export the namespaced targets that
-        # find_package(GTest) provides; alias them so consumers match.
+        # googletest 1.11 doesn't export the namespaced targets; alias them.
         if (NOT TARGET GTest::gtest_main)
             add_library(GTest::gtest_main ALIAS gtest_main)
         endif()
@@ -252,10 +236,8 @@ if (B64_BUILD_TESTS)
     include(GoogleTest)
     gtest_discover_tests(b64-test)
 
-    # microbenchmarks (Google Benchmark). Conan's find_package exposes a
-    # single benchmark::benchmark target that already bundles the default
-    # main(); the submodule splits it into benchmark::benchmark_main. Link
-    # whichever provides main() (the source does not define its own).
+    # Conan exposes one benchmark::benchmark (bundles main); the submodule
+    # splits out benchmark::benchmark_main. Link whichever has main().
     if (TARGET benchmark::benchmark_main)
         set(B64_BENCHMARK_MAIN benchmark::benchmark_main)
     else()
