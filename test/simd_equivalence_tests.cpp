@@ -58,6 +58,40 @@ TEST(SimdEquivalence, EncodeOneShotMatchesScalar)
 	}
 }
 
+// Unaligned input and output buffers must produce identical output. The
+// SIMD path uses unaligned loads/stores; malloc'd test data above happens to
+// be 16-byte aligned, so this offsets both pointers to exercise that.
+TEST(SimdEquivalence, EncodeUnalignedMatchesScalar)
+{
+	const size_t n = 257;
+	for (size_t off = 0; off < 16; ++off)
+	{
+		std::vector<char> inbuf(off + n);
+		for (size_t i = 0; i < n; ++i)
+			inbuf[off + i] = static_cast<char>((i * 73u + 41u) & 0xff);
+		const char* in = inbuf.data() + off;  /* unaligned by `off` */
+
+		base64_encodestate ss;
+		base64_init_encodestate(&ss);
+		const size_t cap = base64_encode_length(n, &ss) + 1;
+
+		base64_encodestate s1;
+		base64_init_encodestate(&s1);
+		std::vector<char> o1(off + cap, '\0');
+		size_t a = base64_encode_block(in, n, o1.data() + off, &s1);
+		a += base64_encode_blockend(o1.data() + off + a, &s1);
+
+		base64_encodestate s2;
+		base64_init_encodestate(&s2);
+		std::vector<char> o2(cap, '\0');
+		size_t b = base64_encode_block_scalar(in, n, o2.data(), &s2);
+		b += base64_encode_blockend(o2.data() + b, &s2);
+
+		EXPECT_EQ(std::string(o1.data() + off, a),
+		          std::string(o2.data(), b)) << "off=" << off;
+	}
+}
+
 TEST(SimdEquivalence, EncodeChunkedMatchesScalar)
 {
 	const std::string in = b64test::pattern(300);
