@@ -13,4 +13,11 @@ Mario Rugiero
 Shlok Datye
 Peter K. Lee
 Ardavon Falls
+Stefan Gänsler	ARM compatibility, x64 fixes, VS2013, C++ state init on instantiation
+Thilo Schulz	prototype and -pedantic fixes, .gitignore
+Kelly Campbell	kelly.a.campbell@gmail.com	Remove newlines from output for JSON compatibility
 
+Patches by:
+------------
+Harry Rostovtsev http://sourceforge.net/p/libb64/bugs/1/#8706
+Jakub Wilk http://sourceforge.net/p/libb64/bugs/2/#4d16
