@@ -17,7 +17,7 @@ References:
 	http://en.wikipedia.org/wiki/Base64
 * base64, another implementation of a commandline en/decoder:
 	http://www.fourmilab.ch/webtools/base64/
-
+	
 Why?
 ---
 I did this because I need an implementation of base64 encoding and decoding,
@@ -31,6 +31,14 @@ which can be found online here:
 http://www.chiark.greenend.org.uk/~sgtatham/coroutines.html
 
 So then, under which license do I release this code? On to the next section...
+
+History:
+-------
+This library is based on libb64 project on sourceforge
+https://sourceforge.net/projects/libb64/
+
+As development there seems to have stopped in 2010 we forked the source to github
+and included the patches included in https://sourceforge.net/p/libb64/bugs/
 
 License:
 -------
