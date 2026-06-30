@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.16)
 project(B64 VERSION 2.0.0 LANGUAGES C CXX)
 
+# Default to an optimized Release build when no type is chosen. Single-config
+# generators otherwise leave CMAKE_BUILD_TYPE empty, which yields -O0; the
+# guard skips multi-config generators (they use CMAKE_CONFIGURATION_TYPES).
+if (NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 # GoogleTest 1.11 and Google Benchmark 1.6 require C++14.
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
