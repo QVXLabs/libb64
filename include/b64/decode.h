@@ -37,6 +37,8 @@ namespace base64
 
 		std::streamsize decode(const char* code_in, const std::streamsize length_in, char* plaintext_out)
 		{
+			if (length_in <= 0)
+				return 0;
 			return static_cast<std::streamsize>(base64_decode_block(
 				code_in, static_cast<size_t>(length_in),
 				plaintext_out, &_state));

@@ -61,6 +61,21 @@ TEST(CppWrapper, BlockApiRoundTrip)
 	EXPECT_EQ(std::string(dec.data(), dn), in);
 }
 
+// A non-positive length is a no-op, not a cast to a huge size_t (which
+// would over-read). Zero and negative lengths both return 0.
+TEST(CppWrapper, NonPositiveLengthIsNoOp)
+{
+	char out[16];
+
+	base64::encoder e;
+	EXPECT_EQ(e.encode("abc", 0, out), 0);
+	EXPECT_EQ(e.encode("abc", -5, out), 0);
+
+	base64::decoder d;
+	EXPECT_EQ(d.decode("YWJj", 0, out), 0);
+	EXPECT_EQ(d.decode("YWJj", -5, out), 0);
+}
+
 // Regression: the C++ decoder's constructor used to be empty, leaving
 // _state uninitialized so a fresh decoder's block API produced garbage. The
 // constructor now calls base64_init_decodestate(), so decoding works out of
