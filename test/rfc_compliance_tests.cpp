@@ -1,12 +1,7 @@
 /*
-RFC 4648 compliance tests.
-
-The encoder is strict/canonical (standard alphabet, correct padding). The
-decoder is deliberately LENIENT: it skips any byte outside the alphabet and
-does not validate padding or the trailing-bit canonical form. The tests
-below pin the encoder's compliant behaviour and *characterise* the decoder's
-leniency, citing the RFC clause each case relates to, so any future change in
-strictness is caught here.
+RFC 4648: the encoder is strict/canonical; the decoder is deliberately
+lenient (skips non-alphabet bytes, doesn't validate padding or canonical
+trailing bits). These pin the encoder and characterise the leniency.
 */
 
 #include <gtest/gtest.h>
@@ -40,16 +35,14 @@ TEST(Rfc4648, EncoderEmitsCanonicalPadding)
 
 // --- Decoder: lenient (documented deviations from strict RFC 4648) ---------
 
-// RFC 4648 section 3.3 says implementations MUST reject characters outside
-// the alphabet unless the embedding spec says otherwise. libb64 SKIPS them.
+// RFC 4648 §3.3: non-alphabet chars MUST be rejected; libb64 skips them.
 TEST(Rfc4648, DecoderSkipsNonAlphabetCharacters_Lenient)
 {
 	EXPECT_EQ(decode("Zm@9v!"), "foo");
 	EXPECT_EQ(decode("Z*m*9*v"), "foo");
 }
 
-// Line breaks / whitespace are skipped (MIME, RFC 2045, expects this; strict
-// RFC 4648 without an embedding spec would reject them).
+// Whitespace/newlines skipped (MIME-friendly; strict §3.3 would reject).
 TEST(Rfc4648, DecoderSkipsWhitespace_Lenient)
 {
 	EXPECT_EQ(decode("Zm9v\r\n"), "foo");
@@ -57,9 +50,8 @@ TEST(Rfc4648, DecoderSkipsWhitespace_Lenient)
 	EXPECT_EQ(decode("\tZm9v\n"), "foo");
 }
 
-// Padding is treated as optional: '=' maps to a skip, so an unpadded or
-// over-/under-padded string still decodes. Strict RFC 4648 section 3.2/3.3
-// would require correct padding.
+// Padding optional: '=' is skipped, so unpadded/mispadded input still
+// decodes (strict §3.2 requires correct padding).
 TEST(Rfc4648, DecoderTreatsPaddingAsOptional_Lenient)
 {
 	EXPECT_EQ(decode("Zg"),     "f");   // no padding
@@ -68,9 +60,8 @@ TEST(Rfc4648, DecoderTreatsPaddingAsOptional_Lenient)
 	EXPECT_EQ(decode("Zm9vYg"), "foob");
 }
 
-// RFC 4648 section 3.5: a strict decoder MAY reject non-zero bits in the
-// final (partial) quantum. libb64 masks them off, so several distinct final
-// characters all decode to the same byte.
+// §3.5: a strict decoder MAY reject non-zero trailing bits; libb64 masks
+// them, so several final chars decode to the same byte.
 TEST(Rfc4648, DecoderAcceptsNonCanonicalTrailingBits_Lenient)
 {
 	// 'Zg==' is canonical for "f"; 'Zh=='/'Zi==' carry non-zero junk bits.

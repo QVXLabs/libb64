@@ -54,8 +54,7 @@ size_t base64_encode_length(size_t plain_len, base64_encodestate* state_in)
 			return 0;
 	}
 	else if(cpl)
-		/* Empty input still produces the single trailing line break that
-		   base64_encode_blockend emits when line wrapping is enabled. */
+		/* empty input still emits blockend's trailing newline */
 		return 1;
 	else
 		return retval;

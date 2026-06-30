@@ -1,7 +1,5 @@
-/*
-Functional tests for the libb64 v2.0.0 C API: known vectors, round-trips,
-chunked (stateful) encode/decode, and the buffer-length helpers.
-*/
+/* Functional tests: known vectors, round-trips, chunked encode/decode,
+   and the buffer-length helpers. */
 
 #include <gtest/gtest.h>
 
@@ -84,8 +82,7 @@ TEST(RoundTrip, AllByteValues)
 
 TEST(RoundTrip, AllLengthsUpTo512)
 {
-	// Covers every residue class mod 3 (the three encoder steps) and the
-	// padding cases, across a wide range of lengths.
+	// Covers all residues mod 3 (the encoder steps) and padding cases.
 	for (size_t n = 0; n <= 512; ++n)
 	{
 		std::string in = pattern(n);
@@ -121,8 +118,8 @@ TEST(Length, DecodeMaxlengthIsUpperBound)
 	}
 }
 
-// Encoding the input in arbitrary chunks must equal encoding it all at once;
-// this exercises the step_A/step_B/step_C state machine across calls.
+// Arbitrary-chunk encoding must equal one-shot (exercises the encoder
+// state machine across calls).
 TEST(Chunked, EncodeMatchesOneShot)
 {
 	const std::string in = pattern(257);
@@ -146,9 +143,8 @@ TEST(Chunked, EncodeMatchesOneShot)
 
 namespace {
 
-// Encode with line wrapping, sizing the buffer generously (independent of
-// the length helper) so a miscount surfaces as a failed expectation below
-// rather than as undefined behaviour.
+// Wrap-encode with a generous buffer so a length-helper miscount fails an
+// assertion below instead of becoming UB.
 std::string encode_wrapped(const std::string& in, size_t cpl, size_t* predicted)
 {
 	base64_encodestate s;
@@ -163,11 +159,9 @@ std::string encode_wrapped(const std::string& in, size_t cpl, size_t* predicted)
 
 } // namespace
 
-// Line wrapping (2780725 "fix a few bugs in line breaking algorithm"): with
-// chars_per_line = N, no output line exceeds N characters, removing the
-// newlines reproduces the unwrapped encoding, base64_encode_length predicts
-// the wrapped size exactly, and the wrapped text still decodes (newlines are
-// skipped by the decoder).
+// Line wrapping (2780725): no line exceeds chars_per_line, stripping
+// newlines reproduces the unwrapped encoding, encode_length predicts the
+// wrapped size, and the wrapped text still decodes.
 TEST(LineWrap, WrapsCorrectlyAndRoundTrips)
 {
 	for (size_t cpl : {size_t(1), size_t(4), size_t(16), size_t(64), size_t(76)})

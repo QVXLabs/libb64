@@ -1,7 +1,5 @@
-/*
-Throughput benchmarks for libb64 v2.0.0 across a range of input sizes and
-data types. Each case reports bytes_per_second (of plaintext processed).
-*/
+/* Throughput benchmarks across input sizes and data types
+   (bytes_per_second of plaintext). */
 
 #include <benchmark/benchmark.h>
 
@@ -113,8 +111,7 @@ BENCHMARK_CAPTURE(BM_Decode, binary, DataType::Binary, 0) B64_SIZES;
 BENCHMARK_CAPTURE(BM_Decode, text,   DataType::Text,   0) B64_SIZES;
 BENCHMARK_CAPTURE(BM_Decode, zeros,  DataType::Zeros,  0) B64_SIZES;
 
-// MIME-style input with line breaks every 76 chars: the decoder skips the
-// newlines, so this shows the cost of wrapped/whitespace-laden input.
+// 76-col wrapped input: shows the decoder's newline-skipping cost.
 BENCHMARK_CAPTURE(BM_Decode, binary_wrapped76, DataType::Binary, 76) B64_SIZES;
 
 // main() comes from the linked benchmark main library (see CMakeLists).

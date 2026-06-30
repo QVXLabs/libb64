@@ -1,7 +1,4 @@
-/*
-Shared helpers for the libb64 test suite. Thin std::string wrappers over
-the v2.0.0 C API so individual tests stay focused on behaviour.
-*/
+/* Shared std::string wrappers over the v2.0.0 C API for the tests. */
 
 #ifndef B64_TEST_UTIL_H
 #define B64_TEST_UTIL_H
@@ -17,8 +14,7 @@ extern "C" {
 
 namespace b64test {
 
-// Encode a buffer in one shot. chars_per_line == 0 (the default) means no
-// line wrapping; a non-zero value exercises the line-break path.
+// Encode in one shot; chars_per_line 0 (default) = no wrapping.
 inline std::string encode(const std::string& in, size_t chars_per_line = 0)
 {
 	base64_encodestate state;
