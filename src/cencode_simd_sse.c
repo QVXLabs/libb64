@@ -52,8 +52,52 @@ static size_t encode_bulk_sse41(const unsigned char* src, size_t len,
 	return (size_t)(s - src);
 }
 
+/* AVX2: 32 input bytes (24 consumed) -> 32 output chars per iteration. A
+   dword permute moves each 128-bit lane's 12 source bytes into the same
+   relative position so the SSE per-lane shuffle/extract applies to both. */
+__attribute__((target("avx2")))
+static size_t encode_bulk_avx2(const unsigned char* src, size_t len, char* dst)
+{
+	const __m256i perm = _mm256_setr_epi32(0, 1, 2, 3, 3, 4, 5, 6);
+	const __m256i shuf = _mm256_set_epi8(
+		10, 11, 9, 10, 7, 8, 6, 7, 4, 5, 3, 4, 1, 2, 0, 1,
+		10, 11, 9, 10, 7, 8, 6, 7, 4, 5, 3, 4, 1, 2, 0, 1);
+	const __m256i lut = _mm256_setr_epi8(
+		65, 71, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -19, -16, 0, 0,
+		65, 71, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -19, -16, 0, 0);
+	const unsigned char* s = src;
+	char* d = dst;
+
+	while (len >= 32)
+	{
+		__m256i in = _mm256_loadu_si256((const __m256i*)s);
+		in = _mm256_permutevar8x32_epi32(in, perm);
+		in = _mm256_shuffle_epi8(in, shuf);
+
+		__m256i t0 = _mm256_and_si256(in, _mm256_set1_epi32(0x0fc0fc00));
+		__m256i t1 = _mm256_mulhi_epu16(t0, _mm256_set1_epi32(0x04000040));
+		__m256i t2 = _mm256_and_si256(in, _mm256_set1_epi32(0x003f03f0));
+		__m256i t3 = _mm256_mullo_epi16(t2, _mm256_set1_epi32(0x01000010));
+		__m256i idx = _mm256_or_si256(t1, t3);
+
+		__m256i reduced = _mm256_subs_epu8(idx, _mm256_set1_epi8(51));
+		__m256i greater = _mm256_cmpgt_epi8(idx, _mm256_set1_epi8(25));
+		reduced = _mm256_sub_epi8(reduced, greater);
+		__m256i out = _mm256_add_epi8(idx,
+		                              _mm256_shuffle_epi8(lut, reduced));
+
+		_mm256_storeu_si256((__m256i*)d, out);
+		s += 24;
+		d += 32;
+		len -= 24;
+	}
+	return (size_t)(s - src);
+}
+
 size_t base64_encode_bulk_simd(const unsigned char* src, size_t len, char* dst)
 {
+	if (__builtin_cpu_supports("avx2"))
+		return encode_bulk_avx2(src, len, dst);
 	if (__builtin_cpu_supports("sse4.1"))
 		return encode_bulk_sse41(src, len, dst);
 	return 0;

@@ -64,8 +64,70 @@ static size_t decode_bulk_sse41(const char* src, size_t len, char* dst)
 	return (size_t)(s - src);
 }
 
+/* AVX2: 32 chars (clean) -> 24 bytes per iteration. Same algorithm as the
+   SSE4.1 path on 256-bit vectors; a final dword gather compacts the two
+   per-lane 12-byte results into a contiguous 24 bytes. */
+__attribute__((target("avx2")))
+static size_t decode_bulk_avx2(const char* src, size_t len, char* dst)
+{
+	const __m256i lut_lo = _mm256_setr_epi8(
+		0x15, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+		0x11, 0x11, 0x13, 0x1A, 0x1B, 0x1B, 0x1B, 0x1A,
+		0x15, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+		0x11, 0x11, 0x13, 0x1A, 0x1B, 0x1B, 0x1B, 0x1A);
+	const __m256i lut_hi = _mm256_setr_epi8(
+		0x10, 0x10, 0x01, 0x02, 0x04, 0x08, 0x04, 0x08,
+		0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10,
+		0x10, 0x10, 0x01, 0x02, 0x04, 0x08, 0x04, 0x08,
+		0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10);
+	const __m256i lut_roll = _mm256_setr_epi8(
+		0, 16, 19, 4, -65, -65, -71, -71, 0, 0, 0, 0, 0, 0, 0, 0,
+		0, 16, 19, 4, -65, -65, -71, -71, 0, 0, 0, 0, 0, 0, 0, 0);
+	const __m256i mask_0f = _mm256_set1_epi8(0x0f);
+	const __m256i mask_2f = _mm256_set1_epi8(0x2f);
+	const __m256i pack = _mm256_setr_epi8(
+		2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 13, 12, -1, -1, -1, -1,
+		2, 1, 0, 6, 5, 4, 10, 9, 8, 14, 13, 12, -1, -1, -1, -1);
+	const __m256i gather = _mm256_setr_epi32(0, 1, 2, 4, 5, 6, 7, 7);
+	const char* s = src;
+	char* d = dst;
+
+	while (len >= 32)
+	{
+		__m256i v = _mm256_loadu_si256((const __m256i*)s);
+		__m256i hi_nib = _mm256_and_si256(_mm256_srli_epi32(v, 4), mask_0f);
+		__m256i lo_nib = _mm256_and_si256(v, mask_0f);
+		__m256i lo = _mm256_shuffle_epi8(lut_lo, lo_nib);
+		__m256i hi = _mm256_shuffle_epi8(lut_hi, hi_nib);
+
+		if (!_mm256_testz_si256(lo, hi))
+			break;
+
+		__m256i eq2f = _mm256_cmpeq_epi8(v, mask_2f);
+		__m256i roll =
+			_mm256_shuffle_epi8(lut_roll, _mm256_add_epi8(eq2f, hi_nib));
+		__m256i vals = _mm256_add_epi8(v, roll);
+
+		__m256i ab = _mm256_maddubs_epi16(vals, _mm256_set1_epi32(0x01400140));
+		__m256i merged = _mm256_madd_epi16(ab, _mm256_set1_epi32(0x00011000));
+		__m256i shuffled = _mm256_shuffle_epi8(merged, pack);
+		__m256i out = _mm256_permutevar8x32_epi32(shuffled, gather);
+
+		unsigned char tmp[32];
+		_mm256_storeu_si256((__m256i*)tmp, out);
+		memcpy(d, tmp, 24);
+
+		s += 32;
+		d += 24;
+		len -= 32;
+	}
+	return (size_t)(s - src);
+}
+
 size_t base64_decode_bulk_simd(const char* src, size_t len, void* dst)
 {
+	if (__builtin_cpu_supports("avx2"))
+		return decode_bulk_avx2(src, len, (char*)dst);
 	if (__builtin_cpu_supports("sse4.1"))
 		return decode_bulk_sse41(src, len, (char*)dst);
 	return 0;
