@@ -129,22 +129,38 @@ size_t base64_decode_block_scalar(const char* code_in, const size_t length_in, v
 
 size_t base64_decode_block(const char* code_in, const size_t length_in, void* plaintext_out, base64_decodestate* state_in)
 {
-	/* SIMD bulk only from a clean step_a boundary; it decodes whole clean
-	   4-char groups and stops before any group with a non-alphabet byte,
-	   leaving the scalar core to handle whitespace/padding/invalid and the
-	   tail (and to maintain stream state). */
-	if (state_in->step == step_a)
+	const char* p = code_in;
+	char* o = (char*)plaintext_out;
+	size_t rem = length_in;
+
+	/* Alternate SIMD and scalar so clean runs after whitespace/padding (MIME
+	   line wrapping) re-engage SIMD instead of falling to scalar for the
+	   whole rest. SIMD bulk-decodes whole clean 4-char groups from a step_a
+	   boundary; when it blocks, the scalar core (fast quad path) decodes the
+	   clean prefix plus the one blocking byte, then SIMD retries. */
+	while (rem)
 	{
-		size_t consumed = base64_decode_bulk_simd(code_in, length_in,
-		                                          plaintext_out);
-		if (consumed)
+		if (state_in->step == step_a && rem >= 16)
 		{
-			size_t produced = consumed / 4 * 3;
-			return produced + base64_decode_block_scalar(
-				code_in + consumed, length_in - consumed,
-				(char*)plaintext_out + produced, state_in);
+			size_t consumed = base64_decode_bulk_simd(p, rem, o);
+			if (consumed)
+			{
+				p += consumed;
+				o += consumed / 4 * 3;
+				rem -= consumed;
+				continue;
+			}
 		}
+		/* SIMD blocked: a non-alphabet byte within the next 16 chars, fewer
+		   than 16 chars left, or mid-group. Scalar-decode the run of clean
+		   chars plus the one blocking byte, then loop to retry SIMD. */
+		size_t clean = 0;
+		while (clean < rem && decoding[(unsigned char)p[clean]] >= 0)
+			clean++;
+		size_t take = clean < rem ? clean + 1 : clean;
+		o += base64_decode_block_scalar(p, take, o, state_in);
+		p += take;
+		rem -= take;
 	}
-	return base64_decode_block_scalar(code_in, length_in, plaintext_out,
-	                                  state_in);
+	return (size_t)(o - (char*)plaintext_out);
 }
