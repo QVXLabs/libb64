@@ -112,7 +112,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" B64_ARCH)
 set(B64_SIMD_SRCS src/cencode_simd_none.c src/cdecode_simd_none.c)
 if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    if (B64_ARCH MATCHES "x86_64|amd64|i[3-6]86")
+    if (B64_ARCH MATCHES "x86_64|amd64|x86|i[3-6]86")
         set(B64_SIMD_SRCS src/cencode_simd_sse.c src/cdecode_simd_sse.c)
     elseif (B64_ARCH MATCHES "aarch64|arm")
         # aarch64 always; ARMv7-A uses NEON only when built with it (the file
