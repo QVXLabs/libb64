@@ -161,12 +161,17 @@ install(
     RUNTIME
       DESTINATION ${CMAKE_INSTALL_BINDIR}/examples)
 
-# tests & benchmarks
-if (NOT DEFINED BUILD_TESTING)
-    set(BUILD_TESTING ON)
+# tests & benchmarks — built by default only when libb64 is the top-level
+# project, so consumers that add_subdirectory() libb64 don't inherit the
+# test/benchmark targets and their dependencies.
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    set(B64_IS_TOP_LEVEL TRUE)
+else()
+    set(B64_IS_TOP_LEVEL FALSE)
 endif()
+option(B64_BUILD_TESTS "Build libb64 tests and benchmarks" ${B64_IS_TOP_LEVEL})
 
-if (BUILD_TESTING)
+if (B64_BUILD_TESTS)
     # Prefer Conan/system-provided packages; fall back to the vendored
     # submodules under third-party/ when not found. (Conan's generated
     # modules are found via CMAKE_MODULE_PATH/CMAKE_PREFIX_PATH set near
