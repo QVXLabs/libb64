@@ -104,6 +104,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+# SIMD bulk kernel: pick the one for the target (GNU/Clang x86 or arm64),
+# else a scalar stub. MSVC and other compilers always get the stub.
+string(TOLOWER "${CMAKE_SYSTEM_PROCESSOR}" B64_ARCH)
+if (MSVC)
+    set(B64_SIMD_SRC src/cencode_simd_none.c)
+elseif (B64_ARCH MATCHES "x86_64|amd64|i[3-6]86")
+    set(B64_SIMD_SRC src/cencode_simd_sse.c)
+elseif (B64_ARCH MATCHES "aarch64|arm64")
+    set(B64_SIMD_SRC src/cencode_simd_neon.c)
+else()
+    set(B64_SIMD_SRC src/cencode_simd_none.c)
+endif()
+
 # libb64
 add_library(
     b64
@@ -111,10 +124,12 @@ add_library(
     include/b64/ccommon.h
     include/b64/cdecode.h
     include/b64/cencode.h
-    include/b64/decode.h
     include/b64/encode.h
+    include/b64/decode.h
+    src/b64_internal.h
     src/cencode.c
-    src/cdecode.c)
+    src/cdecode.c
+    ${B64_SIMD_SRC})
 target_include_directories(
     b64
     PUBLIC ./include)
@@ -229,8 +244,9 @@ if (B64_BUILD_TESTS)
         test/encode_decode_tests.cpp
         test/regression_tests.cpp
         test/rfc_compliance_tests.cpp
-        test/cpp_wrapper_tests.cpp)
-    target_include_directories(b64-test PRIVATE test)
+        test/cpp_wrapper_tests.cpp
+        test/simd_equivalence_tests.cpp)
+    target_include_directories(b64-test PRIVATE test src)
     target_compile_options(b64-test PRIVATE ${B64_STRICT_WARNINGS})
     target_link_libraries(b64-test PRIVATE b64 GTest::gtest_main)
     include(GoogleTest)

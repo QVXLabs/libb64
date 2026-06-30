@@ -7,6 +7,8 @@ For details, see http://sourceforge.net/projects/libb64
 
 #include <b64/cencode.h>
 
+#include "b64_internal.h"
+
 static const char encoding[] =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -80,7 +82,7 @@ do						\
   state_in->stepcount++;			\
 } while(0);
 
-size_t base64_encode_block(const void* plaintext_in, const size_t length_in, char* code_out, base64_encodestate* state_in)
+size_t base64_encode_block_scalar(const void* plaintext_in, const size_t length_in, char* code_out, base64_encodestate* state_in)
 {
 	const char* plainchar = plaintext_in;
 	const char* const plaintextend = plainchar + length_in;
@@ -164,6 +166,27 @@ size_t base64_encode_block(const void* plaintext_in, const size_t length_in, cha
 	}
 	/* control should not reach here */
 	return (size_t) (codechar - code_out);
+}
+
+size_t base64_encode_block(const void* plaintext_in, const size_t length_in, char* code_out, base64_encodestate* state_in)
+{
+	/* SIMD bulk only from a clean step_A boundary with no line wrapping;
+	   the scalar core finishes the residue and maintains stream state.
+	   base64_encode_bulk_simd returns 0 when no SIMD path applies. */
+	if (state_in->step == step_A && state_in->chars_per_line == 0)
+	{
+		size_t consumed = base64_encode_bulk_simd(
+			(const unsigned char*)plaintext_in, length_in, code_out);
+		if (consumed)
+		{
+			size_t produced = consumed / 3 * 4;
+			return produced + base64_encode_block_scalar(
+				(const unsigned char*)plaintext_in + consumed,
+				length_in - consumed, code_out + produced, state_in);
+		}
+	}
+	return base64_encode_block_scalar(plaintext_in, length_in, code_out,
+	                                  state_in);
 }
 
 size_t base64_encode_blockend(char* code_out, base64_encodestate* state_in)
