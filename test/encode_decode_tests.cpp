@@ -5,6 +5,7 @@ chunked (stateful) encode/decode, and the buffer-length helpers.
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
