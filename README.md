@@ -1,6 +1,8 @@
 b64: Base64 Encoding/Decoding Routines
 ======================================
 
+[![CI](https://github.com/QVXLabs/libb64/actions/workflows/ci.yml/badge.svg)](https://github.com/QVXLabs/libb64/actions/workflows/ci.yml)
+
 Overview
 --------
 libb64 is a library of ANSI C routines for fast encoding/decoding data into and from a base64-encoded format. C++ wrappers are included, as well as the source code for standalone encoding and decoding executables.
