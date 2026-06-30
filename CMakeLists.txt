@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(B64 VERSION 1.2.2 LANGUAGES C CXX)
+project(B64 VERSION 2.0.0 LANGUAGES C CXX)
 
 # GoogleTest 1.11 and Google Benchmark 1.6 require C++14.
 set(CMAKE_CXX_STANDARD 14)
@@ -80,14 +80,14 @@ elseif (${DEADSTRIP_FLAG})
     add_link_options(-Wl,-dead_strip)
 endif()
 
-if (${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
     add_compile_options(-fstack-protector-all -O0)
     add_definitions(-DBUILD_DEBUG)
-elseif (${CMAKE_BUILD_TYPE} STREQUAL "Profile")
+elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Profile")
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
     add_compile_options(-fmerge-all-constants -O3 -pg -fno-inline)
     add_compile_definitions(-DBUILD_PROFILE -DNDEBUG)
-elseif (${CMAKE_BUILD_TYPE} STREQUAL "Release")
+elseif ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
     add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fstrict-enums>)
     add_compile_options(
         -fmerge-all-constants
