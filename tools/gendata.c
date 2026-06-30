@@ -24,11 +24,16 @@ generator so results are reproducible.
 static int parse_size(const char* s, uint64_t* out)
 {
 	char* end;
-	unsigned long long v = strtoull(s, &end, 10);
+	unsigned long long v;
 	uint64_t mult = 1;
 
-	if (end == s)
+	/* Require a leading digit. strtoull would otherwise silently accept a
+	   leading '-' and wrap it to a huge value; this also rejects '+',
+	   whitespace and empty input. */
+	if (s[0] < '0' || s[0] > '9')
 		return -1;
+
+	v = strtoull(s, &end, 10);
 	if (*end != '\0')
 	{
 		switch (*end)
@@ -41,6 +46,10 @@ static int parse_size(const char* s, uint64_t* out)
 		if (end[1] != '\0')
 			return -1;
 	}
+
+	if (v > UINT64_MAX / mult)  /* guard v * mult against overflow */
+		return -1;
+
 	*out = (uint64_t) v * mult;
 	return 0;
 }
