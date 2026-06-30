@@ -1,6 +1,19 @@
 cmake_minimum_required(VERSION 3.16)
 project(B64 VERSION 1.2.2 LANGUAGES C CXX)
 
+# GoogleTest 1.11 and Google Benchmark 1.6 require C++14.
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Make Conan-provided packages discoverable. The Conan 1.x
+# cmake_find_package / cmake_find_package_multi generators write their
+# Find*.cmake / *Config.cmake files into the folder where `conan install`
+# runs (conventionally the CMake build dir), so put it on both search
+# paths up front. Harmless when Conan is not used.
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_BINARY_DIR})
+list(APPEND CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR})
+
 include(GNUInstallDirs)
 include(CheckCSourceCompiles)
 
@@ -55,12 +68,12 @@ endif()
 
 check_linker_flag(-Wl,--gc-sections GC_SECTIONS_FLAG)
 check_linker_flag(-Wl,-dead_strip DEADSTRIP_FLAG)
-add_compile_options(
-    -Wall
-    -Werror
-    -pedantic
-    -ffunction-sections
-    -fdata-sections)
+# Section flags are global (needed for the gc-sections/dead-strip linker
+# options below). The strict warning flags are applied per-target via
+# ${B64_STRICT_WARNINGS} so the vendored googletest/benchmark submodules
+# (added with add_subdirectory) are not compiled with -Werror -pedantic.
+add_compile_options(-ffunction-sections -fdata-sections)
+set(B64_STRICT_WARNINGS -Wall -Werror -pedantic)
 if (${GC_SECTIONS_FLAG})
     add_link_options(-Wl,--gc-sections)
 elseif (${DEADSTRIP_FLAG})
@@ -102,6 +115,7 @@ add_library(
 target_include_directories(
     b64
     PUBLIC ./include)
+target_compile_options(b64 PRIVATE ${B64_STRICT_WARNINGS})
 install(
     FILES
       include/b64/ccommon.h
@@ -117,6 +131,7 @@ add_executable(
     base64
     base64/base64.cc)
 target_link_libraries(base64 b64)
+target_compile_options(base64 PRIVATE ${B64_STRICT_WARNINGS})
 install(TARGETS base64 RUNTIME)
 
 # examples
@@ -124,6 +139,7 @@ add_executable(
     c-example1
     examples/c-example1.c)
 target_link_libraries(c-example1 b64)
+target_compile_options(c-example1 PRIVATE ${B64_STRICT_WARNINGS})
 add_custom_target(test-c-example1
     COMMAND echo "*** Test c-example1 ***"
     COMMAND ${CMAKE_BINARY_DIR}/c-example1
@@ -133,6 +149,7 @@ add_executable(
     c-example2
     examples/c-example2.c)
 target_link_libraries(c-example2 b64)
+target_compile_options(c-example2 PRIVATE ${B64_STRICT_WARNINGS})
 add_custom_target(test-c-example2
     COMMAND echo "*** Test c-example2 ***"
     COMMAND ${CMAKE_BINARY_DIR}/c-example2 loremgibson.txt encoded.txt decoded.txt
@@ -143,4 +160,76 @@ install(
     TARGETS c-example1 c-example2
     RUNTIME
       DESTINATION ${CMAKE_INSTALL_BINDIR}/examples)
+
+# tests & benchmarks
+if (NOT DEFINED BUILD_TESTING)
+    set(BUILD_TESTING ON)
+endif()
+
+if (BUILD_TESTING)
+    # Prefer Conan/system-provided packages; fall back to the vendored
+    # submodules under third-party/ when not found. (Conan's generated
+    # modules are found via CMAKE_MODULE_PATH/CMAKE_PREFIX_PATH set near
+    # the top of this file.)
+    find_package(GTest QUIET)
+    find_package(benchmark QUIET)
+
+    # googletest 1.11 / benchmark 1.6.1 declare cmake_minimum_required
+    # below 3.5, which CMake >= 4.0 rejects. Relax the floor for the
+    # vendored subdirectories so the offline fallback still configures.
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.31
+            AND NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+        set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+    endif()
+
+    # Mark a vendored dependency's headers as SYSTEM so our -Werror
+    # -pedantic test/benchmark code isn't broken by third-party headers
+    # (the Conan/find_package imported targets already do this).
+    function(b64_mark_system)
+        foreach(_t ${ARGN})
+            if (TARGET ${_t})
+                get_target_property(_inc ${_t} INTERFACE_INCLUDE_DIRECTORIES)
+                if (_inc)
+                    set_target_properties(${_t} PROPERTIES
+                        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${_inc}")
+                endif()
+            endif()
+        endforeach()
+    endfunction()
+
+    if (NOT GTest_FOUND)
+        message(STATUS "GTest not found; using third-party/googletest")
+        add_subdirectory(third-party/googletest EXCLUDE_FROM_ALL)
+        add_library(GTest::gtest_main ALIAS gtest_main)
+        add_library(GTest::gmock_main ALIAS gmock_main)
+        b64_mark_system(gtest gtest_main gmock gmock_main)
+    endif()
+
+    if (NOT benchmark_FOUND)
+        message(STATUS "benchmark not found; using third-party/benchmark")
+        set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+        add_subdirectory(third-party/benchmark EXCLUDE_FROM_ALL)
+        add_library(benchmark::benchmark_main ALIAS benchmark_main)
+        b64_mark_system(benchmark benchmark_main)
+    endif()
+
+    enable_testing()
+
+    # unit tests (GoogleTest) — held to the same -Werror -pedantic bar
+    add_executable(b64-test
+        test/encode_decode_tests.cpp
+        test/regression_tests.cpp
+        test/rfc_compliance_tests.cpp
+        test/cpp_wrapper_tests.cpp)
+    target_include_directories(b64-test PRIVATE test)
+    target_compile_options(b64-test PRIVATE ${B64_STRICT_WARNINGS})
+    target_link_libraries(b64-test PRIVATE b64 GTest::gtest_main)
+    include(GoogleTest)
+    gtest_discover_tests(b64-test)
+
+    # microbenchmarks (Google Benchmark)
+    add_executable(b64-benchmark benchmark/main.cpp)
+    target_compile_options(b64-benchmark PRIVATE ${B64_STRICT_WARNINGS})
+    target_link_libraries(b64-benchmark PRIVATE b64 benchmark::benchmark_main)
+endif()
 

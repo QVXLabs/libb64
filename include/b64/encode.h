@@ -37,7 +37,9 @@ namespace base64
 
 		std::streamsize encode(const char* code_in, const std::streamsize length_in, char* plaintext_out)
 		{
-			return base64_encode_block(code_in, static_cast<int>(length_in), plaintext_out, &_state);
+			return static_cast<std::streamsize>(base64_encode_block(
+				code_in, static_cast<size_t>(length_in),
+				plaintext_out, &_state));
 		}
 
 		int encode_end(char* plaintext_out)

@@ -1,0 +1,11 @@
+[build_requires]
+CMake/3.22.0
+ninja/1.10.2
+
+[requires]
+gTest/1.11.0
+benchmark/1.6.1
+
+[generators]
+virtualenv
+cmake_find_package
