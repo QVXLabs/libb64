@@ -174,7 +174,7 @@ TEST(SimdEquivalence, DecodeWithWhitespaceMatchesScalar)
 namespace {
 
 // Sprinkle whitespace into a base64 string at pseudo-random positions, so the
-// pruning path meets every alignment of skipped bytes within a vector.
+// decoder meets skipped bytes at every alignment within a SIMD block.
 std::string sprinkle_ws(const std::string& enc, unsigned seed)
 {
 	static const char ws[] = {' ', '\t', '\n', '\r'};
@@ -192,10 +192,11 @@ std::string sprinkle_ws(const std::string& enc, unsigned seed)
 
 } // namespace
 
-// The SIMD whitespace-pruning decode must equal the scalar core across wrap
-// widths (incl. ones that aren't a multiple of 4 or 16) and lengths that land
-// on every FIFO/partial-group boundary.
-TEST(SimdEquivalence, DecodePrunedWrappedMatchesScalar)
+// SIMD-accelerated decode of MIME-wrapped input -- clean runs decoded in
+// SIMD, re-engaging across each line break -- must equal the scalar core
+// across wrap widths (incl. ones that aren't a multiple of 4 or 16) and all
+// lengths.
+TEST(SimdEquivalence, DecodeWrappedMatchesScalar)
 {
 	const size_t widths[] = {1, 2, 3, 4, 7, 16, 19, 20, 32, 64, 76, 77, 128};
 	for (size_t width : widths)
@@ -224,8 +225,8 @@ TEST(SimdEquivalence, DecodeSprinkledWhitespaceMatchesScalar)
 	}
 }
 
-// Streaming wrapped input in arbitrary chunks exercises the prune -> scalar
-// handoff and the mid-group decoder state carried between calls.
+// Streaming wrapped input in arbitrary chunks exercises the SIMD/scalar
+// re-engagement handoff and the mid-group decoder state carried between calls.
 TEST(SimdEquivalence, DecodeWrappedChunkedMatchesScalar)
 {
 	const size_t chunks[] = {1, 2, 3, 5, 7, 16, 17, 31, 32, 48, 64, 77};
