@@ -59,6 +59,9 @@ size_t base64_decode_block_scalar(const char* code_in, const size_t length_in, v
 	char* plainchar = plaintext_out;
 	int fragment;
 
+	if (length_in == 0)
+		return 0;
+
 	*plainchar = state_in->plainchar;
 
 	switch (state_in->step)
@@ -88,7 +91,9 @@ size_t base64_decode_block_scalar(const char* code_in, const size_t length_in, v
 				if (codechar == codeend)
 				{
 					state_in->step = step_a;
-					state_in->plainchar = *plainchar;
+					/* no partial byte pending at step_a, and *plainchar may
+					   be unwritten after the quad path -- don't read it */
+					state_in->plainchar = 0;
 					return (size_t)(plainchar - (char *) plaintext_out);
 				}
 				fragment = decoding[(unsigned char)*codechar++];

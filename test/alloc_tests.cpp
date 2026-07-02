@@ -26,6 +26,7 @@ struct TrackingCtx
 	int long_allocs = 0;
 	int frees = 0;
 	bool fail = false;
+	int fail_after = -1;  // fail once this many allocations succeeded; -1 never
 };
 
 void* tracking_realloc(void* ctx, void* ptr, size_t size, b64_memlife life)
@@ -37,8 +38,10 @@ void* tracking_realloc(void* ctx, void* ptr, size_t size, b64_memlife life)
 		std::free(ptr);
 		return 0;
 	}
-	if (c->fail)
+	if (c->fail || c->fail_after == 0)
 		return 0;
+	if (c->fail_after > 0)
+		c->fail_after--;
 	void* p = std::realloc(ptr, size);
 	if (p && !ptr)
 	{
@@ -159,4 +162,29 @@ TEST(Alloc, CppWrappersUseShortLifetime)
 	EXPECT_GT(dctx.short_allocs, 0);
 	EXPECT_EQ(dctx.live, 0);
 	EXPECT_EQ(os2.str(), in);
+}
+
+// A scratch allocation failure in the streaming wrappers surfaces as
+// bad_alloc (it used to be a null-pointer write) and doesn't leak the
+// buffer that was already allocated.
+TEST(Alloc, CppWrappersScratchFailureThrows)
+{
+	for (int fail_after : {0, 1})
+	{
+		TrackingCtx ectx; ectx.fail_after = fail_after;
+		base64::encoder E = base64::encoder_builder()
+			.realloc(tracking_realloc, &ectx).build();
+		std::istringstream is("abc");
+		std::ostringstream os;
+		EXPECT_THROW(E.encode(is, os), std::bad_alloc);
+		EXPECT_EQ(ectx.live, 0) << "fail_after=" << fail_after;
+
+		TrackingCtx dctx; dctx.fail_after = fail_after;
+		base64::decoder D = base64::decoder_builder()
+			.realloc(tracking_realloc, &dctx).build();
+		std::istringstream is2("YWJj");
+		std::ostringstream os2;
+		EXPECT_THROW(D.decode(is2, os2), std::bad_alloc);
+		EXPECT_EQ(dctx.live, 0) << "fail_after=" << fail_after;
+	}
 }

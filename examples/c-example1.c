@@ -91,7 +91,7 @@ int main(void)
 	
 	/* encode the data */
 	encoded = encode(input);
-	printf("encoded: %s", encoded); /* encoded data has a trailing newline */
+	printf("encoded: %s\n", encoded);
 
 	/* decode the data */
 	decoded = decode(encoded);

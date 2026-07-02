@@ -9,6 +9,7 @@ For details, see http://sourceforge.net/projects/libb64
 #define BASE64_DECODE_H
 
 #include <iostream>
+#include <new>
 
 #include "alloc.h"
 
@@ -33,7 +34,8 @@ namespace base64
 		// Tag so the builder can reach a non-deprecated constructor.
 		struct builder_tag {};
 		decoder(int buffersize_in, const b64_allocator& alloc_in, builder_tag)
-		: _buffersize(buffersize_in), _alloc(alloc_in)
+		// clamp: a non-positive size would turn into a huge size_t
+		: _buffersize(buffersize_in < 1 ? 1 : buffersize_in), _alloc(alloc_in)
 		{
 			base64_init_decodestate(&_state);
 		}
@@ -82,10 +84,17 @@ namespace base64
 			//
 			const int N = _buffersize;
 			char* code = alloc_scratch(static_cast<size_t>(N));
+			if (!code)
+				throw std::bad_alloc();
 			/* Decoded output is at most ~3/4 of the input; size it that way
 			   instead of a full N. */
 			char* plaintext = alloc_scratch(base64_decode_maxlength(
 				static_cast<size_t>(N)));
+			if (!plaintext)
+			{
+				free_scratch(code);
+				throw std::bad_alloc();
+			}
 			std::streamsize codelength;
 			std::streamsize plainlength;
 
