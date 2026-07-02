@@ -188,7 +188,7 @@ target_link_libraries(c-example1 b64)
 target_compile_options(c-example1 PRIVATE ${B64_STRICT_WARNINGS})
 add_custom_target(test-c-example1
     COMMAND echo "*** Test c-example1 ***"
-    COMMAND ${CMAKE_BINARY_DIR}/c-example1
+    COMMAND $<TARGET_FILE:c-example1>
     DEPENDS c-example1)
 
 add_executable(
@@ -198,7 +198,7 @@ target_link_libraries(c-example2 b64)
 target_compile_options(c-example2 PRIVATE ${B64_STRICT_WARNINGS})
 add_custom_target(test-c-example2
     COMMAND echo "*** Test c-example2 ***"
-    COMMAND ${CMAKE_BINARY_DIR}/c-example2 loremgibson.txt encoded.txt decoded.txt
+    COMMAND $<TARGET_FILE:c-example2> loremgibson.txt encoded.txt decoded.txt
     COMMAND diff -q loremgibson.txt decoded.txt
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/examples
     DEPENDS c-example2)

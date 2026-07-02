@@ -76,7 +76,13 @@ namespace base64
 /* Default allocator for the C++ stream wrappers: wraps new[]/delete[] so the
    default path keeps operator new's throw-on-OOM behavior. The wrappers resolve
    their allocator to this (or the caller's) once at construction, so their hot
-   path needs no per-call check. */
+   path needs no per-call check.
+
+   Allocate/free only: the resize case (ptr != NULL && size != 0) of the
+   b64_realloc_fn contract is NOT supported -- new[] cannot resize in place and
+   the old block's size is unknown, so the contents are not copied and the old
+   block is not freed. The wrappers never resize; don't use this callback with
+   code that does. */
 extern "C" inline void* b64_new_delete_realloc(void* ctx, void* ptr,
                                                size_t size, b64_memlife life)
 {

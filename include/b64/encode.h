@@ -9,6 +9,7 @@ For details, see http://sourceforge.net/projects/libb64
 #define BASE64_ENCODE_H
 
 #include <iostream>
+#include <new>
 
 #include "alloc.h"
 
@@ -33,7 +34,9 @@ namespace base64
 		// Tag so the builder can reach a non-deprecated constructor.
 		struct builder_tag {};
 		encoder(int buffersize_in, const b64_allocator& alloc_in, builder_tag)
-			: _buffersize(buffersize_in), _alloc(alloc_in)
+			// clamp: a non-positive size would turn into a huge size_t
+			: _buffersize(buffersize_in < 1 ? 1 : buffersize_in),
+			  _alloc(alloc_in)
 		{
 			base64_init_encodestate(&_state);
 		}
@@ -86,13 +89,30 @@ namespace base64
 		{
 			const int N = _buffersize;
 			char* plaintext = alloc_scratch(static_cast<size_t>(N));
+			if (!plaintext)
+				throw std::bad_alloc();
 			/* Size the output to what N input bytes actually encode to at the
 			   current line width (base64_encode_length accounts for wrapping
 			   newlines); the small constant covers the mid-stream carry. The
 			   old 2*N was both wasteful when unwrapped and too small for very
 			   narrow line widths. */
-			char* code = alloc_scratch(
-				base64_encode_length(static_cast<size_t>(N), &_state) + 16);
+			const size_t cap =
+				base64_encode_length(static_cast<size_t>(N), &_state);
+			/* 0 is encode_length's size_t-overflow sentinel (N >= 1 here, so
+			   it can't mean an empty encoding); allocating 0 + 16 would
+			   under-size the buffer. Reachable only with a 32-bit size_t,
+			   buffer_size >= ~1.6 GB and chars_per_line <= 2. */
+			if (!cap)
+			{
+				free_scratch(plaintext);
+				throw std::bad_alloc();
+			}
+			char* code = alloc_scratch(cap + 16);
+			if (!code)
+			{
+				free_scratch(plaintext);
+				throw std::bad_alloc();
+			}
 			std::streamsize plainlength;
 			std::streamsize codelength;
 
@@ -107,8 +127,11 @@ namespace base64
 
 			codelength = encode_end(code);
 			ostream_in.write(code, codelength);
-			//
+			// reset for the next stream, keeping the configured line width
+			// (base64_init_encodestate clobbers chars_per_line)
+			const size_t cpl = _state.chars_per_line;
 			base64_init_encodestate(&_state);
+			_state.chars_per_line = cpl;
 
 			free_scratch(code);
 			free_scratch(plaintext);

@@ -91,6 +91,14 @@ int main(int argc, char** argv)
 		E.encode(instream, outstream);
 	}
 
+	// Surface write failures (e.g. disk full) as a non-zero exit.
+	outstream.flush();
+	if (!outstream)
+	{
+		std::cerr << "base64: error writing output file!\n";
+		return 1;
+	}
+
 	return 0;
 }
 

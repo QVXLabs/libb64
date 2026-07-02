@@ -110,6 +110,37 @@ TEST(CppWrapper, StreamEncodeWrappedSmallBufferRoundTrips)
 	}
 }
 
+// Regression: the streaming encode's end-of-stream re-init clobbered the
+// builder-configured chars_per_line, so a reused encoder silently stopped
+// wrapping from its second stream on.
+TEST(CppWrapper, StreamEncoderReuseKeepsLineWidth)
+{
+	std::string in;
+	for (int i = 0; i < 500; ++i)
+		in.push_back(static_cast<char>((i * 31 + 7) & 0xff));
+
+	base64::encoder e = base64::encoder_builder().chars_per_line(76).build();
+	std::string enc[2];
+	for (std::string& s : enc)
+	{
+		std::istringstream is(in);
+		std::ostringstream os;
+		e.encode(is, os);
+		s = os.str();
+	}
+
+	EXPECT_EQ(enc[0], enc[1]);
+	EXPECT_NE(enc[1].find('\n'), std::string::npos);
+	size_t run = 0;
+	for (char c : enc[1])
+	{
+		if (c == '\n')
+			run = 0;
+		else
+			ASSERT_LE(++run, 76u);
+	}
+}
+
 // Regression: the decoder constructor was empty (uninitialized _state); it
 // now calls base64_init_decodestate(), so a fresh decoder works.
 TEST(CppWrapper, DecoderInitializedByConstructor_Regression)

@@ -15,6 +15,8 @@ extern "C" {
 #include <b64/cdecode.h>
 }
 
+#include "b64_internal.h"  // base64_decode_block_scalar (test-only symbol)
+
 // 430cbdc/cc9baa0: decode_value upper bound was `>` not `>=`, so '{'
 // (index 80 in the 80-entry table) read out of bounds. Outside the
 // alphabet must yield -1.
@@ -128,4 +130,37 @@ TEST(Regression, DecodeMaxlengthCoversSpeculativeStore)
 		                                     out.data(), &s);
 		EXPECT_EQ(std::string(out.data(), m), in) << "n=" << n;
 	}
+}
+
+// Ending a decode exactly on a quad boundary at step_a used to read
+// *plainchar one position past the bytes written: uninitialized memory, and
+// out of bounds when the output buffer is sized exactly to the decoded
+// length. step_a carries no partial byte, so the state must store 0 without
+// touching the buffer (an ASan build proves the read is gone).
+TEST(Regression, DecodeQuadBoundaryDoesNotReadPastOutput)
+{
+	const char in[] = "QUJDREVG";  // "ABCDEF": 8 clean chars, 2 whole quads
+	base64_decodestate s;
+
+	base64_init_decodestate(&s);
+	std::vector<char> out(6);  // exactly the decoded size, no slack
+	EXPECT_EQ(base64_decode_block(in, 8, out.data(), &s), 6u);
+	EXPECT_EQ(std::string(out.data(), 6), "ABCDEF");
+	EXPECT_EQ(s.plainchar, 0);
+
+	base64_init_decodestate(&s);
+	std::vector<char> out2(6);
+	EXPECT_EQ(base64_decode_block_scalar(in, 8, out2.data(), &s), 6u);
+	EXPECT_EQ(std::string(out2.data(), 6), "ABCDEF");
+	EXPECT_EQ(s.plainchar, 0);
+}
+
+// The scalar decoder wrote plaintext_out[0] before checking the length; a
+// zero-length call must not touch the output buffer at all.
+TEST(Regression, ZeroLengthScalarDecodeWritesNothing)
+{
+	base64_decodestate s;
+	base64_init_decodestate(&s);
+	EXPECT_EQ(base64_decode_block_scalar("", 0, nullptr, &s), 0u);
+	EXPECT_EQ(s.step, step_a);
 }

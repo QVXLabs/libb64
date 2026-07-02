@@ -101,22 +101,43 @@ int main(int argc, char** argv)
 	}
 	
 	/* encode the input file */
-	
-	inputFile   = fopen(argv[1], "r");
-	encodedFile = fopen(argv[2], "w");
-	
+
+	/* binary mode: the input may contain zeros and other non-text bytes */
+	inputFile   = fopen(argv[1], "rb");
+	if (!inputFile)
+	{
+		perror(argv[1]);
+		exit(1);
+	}
+	encodedFile = fopen(argv[2], "wb");
+	if (!encodedFile)
+	{
+		perror(argv[2]);
+		exit(1);
+	}
+
 	encode(inputFile, encodedFile);
-	
+
 	fclose(inputFile);
 	fclose(encodedFile);
 
 	/* decode the encoded file */
-	
-	encodedFile = fopen(argv[2], "r");
-	decodedFile = fopen(argv[3], "w");
-	
+
+	encodedFile = fopen(argv[2], "rb");
+	if (!encodedFile)
+	{
+		perror(argv[2]);
+		exit(1);
+	}
+	decodedFile = fopen(argv[3], "wb");
+	if (!decodedFile)
+	{
+		perror(argv[3]);
+		exit(1);
+	}
+
 	decode(encodedFile, decodedFile);
-	
+
 	fclose(encodedFile);
 	fclose(decodedFile);
 
