@@ -96,8 +96,18 @@ namespace base64
 			   newlines); the small constant covers the mid-stream carry. The
 			   old 2*N was both wasteful when unwrapped and too small for very
 			   narrow line widths. */
-			char* code = alloc_scratch(
-				base64_encode_length(static_cast<size_t>(N), &_state) + 16);
+			const size_t cap =
+				base64_encode_length(static_cast<size_t>(N), &_state);
+			/* 0 is encode_length's size_t-overflow sentinel (N >= 1 here, so
+			   it can't mean an empty encoding); allocating 0 + 16 would
+			   under-size the buffer. Reachable only with a 32-bit size_t,
+			   buffer_size >= ~1.6 GB and chars_per_line <= 2. */
+			if (!cap)
+			{
+				free_scratch(plaintext);
+				throw std::bad_alloc();
+			}
+			char* code = alloc_scratch(cap + 16);
 			if (!code)
 			{
 				free_scratch(plaintext);
