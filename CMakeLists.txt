@@ -2,8 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 # /VERSION.txt is the single source of truth for the project version; CMake
 # and the generated b64/version.h both derive from it. Re-run CMake when it
-# changes. (.txt because a bare VERSION shadows the C++ <version> header on
-# case-insensitive filesystems.)
+# changes. .txt suffix: a bare VERSION shadows <version> on case-insensitive FS.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt")
 file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt" B64_VERSION
