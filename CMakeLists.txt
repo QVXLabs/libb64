@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 
-# /VERSION is the single source of truth for the project version; CMake and
-# the generated b64/version.h both derive from it. Re-run CMake when it changes.
+# /VERSION.txt is the single source of truth for the project version; CMake
+# and the generated b64/version.h both derive from it. Re-run CMake when it
+# changes. .txt suffix: a bare VERSION shadows <version> on case-insensitive FS.
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
-file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" B64_VERSION LIMIT_COUNT 1)
+    "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt")
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION.txt" B64_VERSION
+     LIMIT_COUNT 1)
 project(B64 VERSION ${B64_VERSION} LANGUAGES C CXX)
 
 # Default to an optimized Release build when no type is chosen. Single-config

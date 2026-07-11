@@ -5,6 +5,7 @@ libb64: Base64 Encoding/Decoding Routines
 
 Unreleased
 ----------
+* Build: the repo-root `VERSION` file is renamed `VERSION.txt`. A bare `VERSION` shadows the C++ `<version>` header on case-insensitive filesystems (macOS) when the repo root lands on an include path
 
 Version 2.1.0 Release
 ---------------------

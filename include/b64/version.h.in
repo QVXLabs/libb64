@@ -1,9 +1,9 @@
 /*
 version.h - libb64 version information.
 
-Generated from the top-level VERSION file by CMake (configure_file). Do not
-edit this file or the generated version.h; change /VERSION instead -- it is
-the single source of truth, consumed by both the build and these macros.
+Generated from the top-level VERSION.txt by CMake (configure_file). Do not
+edit this file or the generated version.h; change /VERSION.txt instead --
+it is the single source of truth for the build and these macros.
 */
 #ifndef BASE64_VERSION_H
 #define BASE64_VERSION_H
