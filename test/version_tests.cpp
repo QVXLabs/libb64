@@ -1,7 +1,7 @@
-/* The version macros are generated from the top-level VERSION file. These
-   checks are bump-stable (no hard-coded numbers): they confirm the generated
-   header is present and internally consistent, and that the legacy per-header
-   aliases still track the canonical BASE64_VERSION_* macros. */
+/* The version macros are generated from the top-level VERSION.txt file.
+   These checks are bump-stable (no hard-coded numbers): they confirm the
+   generated header is present and internally consistent, and that the legacy
+   per-header aliases still track the canonical BASE64_VERSION_* macros. */
 
 #include <gtest/gtest.h>
 
